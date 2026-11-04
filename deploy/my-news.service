@@ -4,7 +4,7 @@
 #   # поправьте WorkingDirectory/ExecStart под свой путь
 #   systemctl --user daemon-reload && systemctl --user enable --now my-news
 [Unit]
-Description=My News — персональный дашборд новостей (127.0.0.1:8000)
+Description=Волна — персональный агрегатор новостей (127.0.0.1:8000)
 After=network-online.target
 
 [Service]

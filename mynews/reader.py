@@ -55,7 +55,8 @@ def summarize(text: str, title: str = "", n: int = 4) -> list[str]:
         return [s for _, s in candidates] or sentences[:n]
 
     def words(s: str) -> list[str]:
-        return [w.lower() for w in WORD_RX.findall(s) if w.lower() not in STOP and len(w) > 2]
+        # грубый стемминг (первые 6 букв), чтобы «видеокарта/видеокарту» считались одним словом
+        return [w.lower().replace("ё", "е")[:6] for w in WORD_RX.findall(s) if w.lower() not in STOP and len(w) > 2]
 
     freq = Counter(w for _, s in candidates for w in words(s))
     if not freq:

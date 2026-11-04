@@ -7,115 +7,157 @@ from mynews import collector, config, db, reader
 NOW = int(time.time())
 
 
-def item(eid, title, cat="hardware", comments=0, score=0, url=None, age_h=1, **kw):
+def item(url, title, topics=("ai",), lang=None, age_h=1, **kw):
     d = {
-        "external_id": eid, "category": cat, "title": title, "summary": None, "image_url": None,
-        "source_url": url or f"https://www.reddit.com/r/x/{eid}", "discussion_url": f"https://www.reddit.com/r/x/{eid}",
-        "source": "r/x", "comments_count": comments, "score": score, "created_at": NOW - age_h * 3600,
+        "external_id": collector.canonical_url(url), "topics": list(topics), "title": title,
+        "summary": None, "image_url": None, "source_url": url, "discussion_url": None,
+        "source": kw.pop("source", collector.canonical_url(url).split("/")[0]),
+        "lang": lang or collector.detect_lang(title), "comments_count": 0, "score": 0, "weight": 0.0,
+        "also": [], "created_at": NOW - int(age_h * 3600),
     }
     d.update(kw)
     return d
 
 
-def test_threshold():
-    assert collector.passes_threshold(item("a", "t", comments=101))
-    assert collector.passes_threshold(item("b", "t", score=251))
-    assert not collector.passes_threshold(item("c", "t", comments=100, score=250))
-
-
-@pytest.mark.parametrize("title,cat", [
-    ("Nvidia announces RTX 5090 Ti with 32GB GDDR7", "hardware"),
-    ("OpenAI releases new reasoning model", "ai"),
+@pytest.mark.parametrize("title,expected", [
+    ("OpenAI представила новую нейросеть для генерации видео", "ai"),
+    ("В России запустили ИИ-ассистента для врачей", "ai"),
+    ("Nvidia анонсировала GeForce RTX 5090 Super", "hardware"),
+    ("Вышел первый трейлер новой игры от CD Projekt", "games"),
     ("Valve's Steam hits record concurrent users", "games"),
-    ("Show HN: My weekend woodworking project", None),
-    ("Running LLMs locally on a Mac", "ai"),
-    ("Benchmarking AMD GPUs for gaming", "hardware"),
+    ("SpaceX провела очередной запуск Starship", "space"),
 ])
-def test_classify(title, cat):
-    assert collector.classify(title) == cat
+def test_classify(title, expected):
+    assert expected in collector.classify(title)
 
 
-def test_dedup_keeps_most_discussed_and_merges_image():
-    a = item("reddit:1", "Nvidia announces RTX 5090 with 32GB of GDDR7 memory", comments=300,
-             url="https://videocardz.com/rtx-5090")
-    b = item("hn:2", "NVIDIA announces the RTX 5090: 32GB GDDR7 memory", comments=500,
-             url="https://www.nvidia.com/news/rtx5090", source="Hacker News")
-    c = item("rss:3", "Something different entirely about Intel fabs", comments=200,
-             image_url="https://img/x.jpg")
-    d = item("reddit:4", "RTX 5090 review roundup", comments=150, url="https://videocardz.com/rtx-5090/",
-             image_url="https://img/5090.jpg")
-    out = collector.deduplicate([a, b, c, d])
-    ids = [i["external_id"] for i in out]
-    assert ids == ["hn:2", "rss:3"]
-    assert out[0]["image_url"] == "https://img/5090.jpg"  # картинка взята у дубля
+def test_classify_no_false_positives():
+    assert collector.classify("Business intelligence report for retail") == []
+    assert collector.classify("На линии метро открыли новые станции") == []
 
 
-def test_dedup_same_url():
-    a = item("reddit:1", "Totally different words here", comments=150, url="https://site.com/a?utm=1")
-    b = item("hn:1", "Unrelated headline text", comments=250, url="https://www.site.com/a/")
-    out = collector.deduplicate([a, b])
-    assert [i["external_id"] for i in out] == ["hn:1"]
+def test_feed_modes():
+    bound = {"topic": "games", "mode": "bound"}
+    fallback = {"topic": "games", "mode": "fallback"}
+    assert collector.classify("Обзор недели", feed=bound) == ["games"]
+    assert collector.classify("Обзор недели", feed=fallback) == ["games"]
+    assert collector.classify("Netflix продлил сериал на второй сезон", feed=fallback) == ["movies"]
 
 
-def test_select_top_limit_and_rss_fallback(monkeypatch):
-    monkeypatch.setattr(config, "PER_CATEGORY_LIMIT", 3)
-    monkeypatch.setattr(config, "RSS_FALLBACK_MIN", 2)
-    hot = [item(f"h{i}", f"unique hardware story number {i} words", comments=100 + i) for i in range(5)]
-    rss = [item("r1", "AI feed headline about models", cat="ai", age_h=2),
-           item("r2", "AI feed second headline about chips", cat="ai", age_h=1),
-           item("r3", "AI feed third headline about training", cat="ai", age_h=3)]
-    out = collector.select_top(hot, rss)
-    hw = [i for i in out if i["category"] == "hardware"]
-    assert [i["external_id"] for i in hw] == ["h4", "h3", "h2"]
-    assert [i["external_id"] for i in out if i["category"] == "ai"] == ["r2", "r1"]
+RSS = b"""<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0"><channel><title>T</title>
+<item><title>AMD &amp; Intel: \xd0\xbd\xd0\xbe\xd0\xb2\xd1\x8b\xd0\xb5 \xd0\xbf\xd1\x80\xd0\xbe\xd1\x86\xd0\xb5\xd1\x81\xd1\x81\xd0\xbe\xd1\x80\xd1\x8b</title>
+<link>https://www.example.ru/news/1/?utm_source=rss</link>
+<description>&lt;p&gt;&lt;img src="https://img.example.ru/1.jpg"&gt;Text here&lt;/p&gt;</description>
+<pubDate>Tue, 04 Nov 2026 10:00:00 GMT</pubDate></item>
+<item><title></title><link>https://example.ru/2</link></item>
+</channel></rss>"""
 
 
-def test_parse_reddit():
-    payload = {"data": {"children": [
-        {"data": {"id": "x1", "title": "Big &amp; news", "permalink": "/r/hardware/comments/x1/",
-                  "url": "https://example.com/a", "num_comments": 420, "score": 1200,
-                  "created_utc": NOW, "subreddit": "hardware",
-                  "preview": {"images": [{"source": {"url": "https://preview.redd.it/a.jpg?w=1&amp;s=2"}}]}}},
-        {"data": {"id": "x2", "title": "Pinned", "stickied": True, "permalink": "/x"}},
-        {"data": {"id": "x3", "title": "Self post", "is_self": True, "selftext": "body",
-                  "permalink": "/r/hardware/comments/x3/", "url": "https://www.reddit.com/r/hardware/comments/x3/",
-                  "num_comments": 5, "score": 3, "created_utc": NOW}},
-    ]}}
-    out = collector.parse_reddit(payload, "hardware", "hardware")
+def test_parse_feed():
+    out = collector.parse_feed(RSS, {"name": "Пример", "topic": "hardware", "mode": "bound"})
+    assert len(out) == 1
+    it = out[0]
+    assert it["external_id"] == "example.ru/news/1"
+    assert it["image_url"] == "https://img.example.ru/1.jpg"
+    assert it["lang"] == "ru" and it["topics"][0] == "hardware"
+    assert it["summary"] == "Text here"
+
+
+def test_dedup_prefers_russian_and_collects_sources():
+    en = item("https://videocardz.com/a", "Nvidia GeForce RTX 5090 Super launches with 32GB memory",
+              topics=["hardware"], comments_count=400, discussion_url="https://news.ycombinator.com/item?id=1",
+              source="Hacker News")
+    ru1 = item("https://3dnews.ru/1", "Nvidia представила GeForce RTX 5090 Super с 32 ГБ памяти",
+               topics=["hardware"], image_url="https://3dnews.ru/i.jpg", source="3DNews")
+    ru2 = item("https://ixbt.com/2", "Nvidia представила видеокарту GeForce RTX 5090 Super с 32 ГБ",
+               topics=["hardware"], source="iXBT")
+    same_url = item("https://www.3dnews.ru/1/", "Совсем другой заголовок про это же", topics=["hardware"], source="3DNews RSS")
+    other = item("https://x.ru/3", "Intel снизила цены на процессоры Core Ultra", topics=["hardware"])
+    out = collector.deduplicate([en, ru1, ru2, same_url, other])
     assert len(out) == 2
-    assert out[0]["title"] == "Big & news"
-    assert out[0]["image_url"] == "https://preview.redd.it/a.jpg?w=1&s=2"
-    assert out[1]["source_url"] == out[1]["discussion_url"]
+    win = next(o for o in out if "RTX" in o["title"])
+    assert win["lang"] == "ru" and win["source"] == "3DNews"
+    assert {a["source"] for a in win["also"]} == {"iXBT", "Hacker News"}
+    # обсуждение и счётчик комментариев берутся у англоязычного дубля с HN
+    assert win["discussion_url"].startswith("https://news.ycombinator.com") and win["comments_count"] == 400
+
+@pytest.mark.parametrize("a,b,dup", [
+    ("OpenAI представила GPT-5.5 с режимом долгих рассуждений",
+     "OpenAI представила GPT-5.5: модель научилась долгим рассуждениям", True),
+    ("Nvidia представила GeForce RTX 5090", "Nvidia представила GeForce RTX 5080", False),
+    ("Steam установил новый рекорд по одновременному онлайну",
+     "Steam побил рекорд одновременного онлайна пользователей", True),
+    ("Apple выпустила iOS 26.1 с исправлениями", "Apple выпустила новые MacBook Pro", False),
+    ("Intel снизила цены на процессоры Core Ultra", "AMD снизила цены на процессоры Ryzen", False),
+])
+def test_is_duplicate(a, b, dup):
+    assert collector.is_duplicate(item("https://x.ru/1", a), item("https://y.ru/2", b)) is dup
 
 
-def test_summarize():
+def test_dedup_is_order_independent():
+    x = item("https://ixbt.com/1", "OpenAI выпустила GPT-5.5 с новым режимом рассуждений", age_h=4)
+    b = item("https://3dnews.ru/1", "OpenAI представила GPT-5.5: модель научилась долгим рассуждениям", age_h=3)
+    a = item("https://habr.com/1", "OpenAI представила GPT-5.5 с режимом долгих рассуждений", age_h=2)
+    out = collector.deduplicate([x, b, a])
+    assert len(out) == 1 and len(out[0]["also"]) == 2
+
+
+def test_hotness_prefers_coverage_and_freshness():
+    a = item("https://a.ru/1", "Один", age_h=1)
+    b = item("https://b.ru/1", "Два", age_h=1, also=[{"source": "x", "url": "u"}, {"source": "y", "url": "v"}])
+    c = item("https://c.ru/1", "Три", age_h=30)
+    assert collector.hotness(b) > collector.hotness(a) > collector.hotness(c)
+
+
+def test_build_sections():
+    pool = [
+        dict(item("https://a.ru/1", "Нейросеть рисует видеокарты", topics=["ai", "hardware"]), id=1),
+        dict(item("https://a.ru/2", "Новая видеокарта Radeon", topics=["hardware"]), id=2),
+        dict(item("https://a.com/3", "New GPU from AMD", topics=["hardware"]), id=3),
+        dict(item("https://a.ru/4", "Apple показала новый iPhone", topics=["gadgets"]), id=4),
+    ]
+    secs = collector.build_sections(pool, ["ai", "hardware", "c-1"], [{"id": "c-1", "keywords": "iphone, макбук"}], None)
+    ids = {s["topic"]: [i["id"] for i in s["items"]] for s in secs}
+    assert ids["ai"] == [1]
+    assert 1 not in ids["hardware"] and set(ids["hardware"]) == {2, 3}
+    assert ids["c-1"] == [4]
+    ru = collector.build_sections(pool, ["hardware"], [], "ru")
+    assert {i["id"] for i in ru[0]["items"]} == {1, 2}
+
+
+def test_summarize_russian():
     text = (
-        "Nvidia has announced the RTX 5090 graphics card at CES. "
-        "The RTX 5090 graphics card features 32GB of GDDR7 memory and a new architecture. "
-        "Pricing starts at $1999 for the RTX 5090. "
-        "Weather in Las Vegas was pleasant during the show this year. "
-        "Nvidia says the graphics card doubles performance in ray tracing workloads. "
-        "Availability is expected in late January for the RTX 5090 graphics card. "
-        "Some attendees enjoyed the food courts very much indeed."
+        "Компания Nvidia представила видеокарту GeForce RTX 5090 Super на выставке CES. "
+        "Новая видеокарта получила 32 ГБ памяти GDDR7 и обновлённую архитектуру. "
+        "Погода в Лас-Вегасе во время выставки была солнечной и тёплой. "
+        "Стоимость видеокарты Nvidia составит 1999 долларов в США. "
+        "Продажи видеокарты начнутся в конце января во всех регионах. "
+        "Посетители выставки также отметили вкусную еду на фудкортах."
     )
-    out = reader.summarize(text, "Nvidia announces RTX 5090", n=3)
-    assert len(out) == 3
-    assert all("Weather" not in s for s in out)
+    out = reader.summarize(text, "Nvidia представила GeForce RTX 5090 Super", n=3)
+    assert len(out) == 3 and not any("Погода" in s for s in out)
 
 
-def test_build_selection_and_db(tmp_path, monkeypatch):
+def test_db_roundtrip(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "DB_PATH", tmp_path / "news.db")
     db.init()
-    fresh = [item("reddit:a", "Hot hardware topic about GPUs today", comments=500),
-             item("reddit:b", "Quiet post nobody cares about", comments=3, score=10),
-             item("reddit:old", "Old hardware topic from two days ago", comments=900, age_h=48)]
-    sel = collector.build_selection(fresh, [], [])
-    assert [i["external_id"] for i in sel] == ["reddit:a"]
-    db.replace_selection(sel)
-    nid = db.list_news()[0]["id"]
-    db.save_article(nid, "text", ["point"], None)
-    # Следующий прогон: источник временно молчит — запись сохраняется, кэш тоже
-    sel2 = collector.build_selection([], [], db.all_rows())
-    db.replace_selection(sel2)
-    row = db.get(nid)
-    assert row and row["tldr"] == '["point"]'
+    a = item("https://a.ru/1", "Нейросеть", image_url="https://i/1.jpg")
+    db.replace_pool([a])
+    row = db.pool(0)[0]
+    db.save_article(row["id"], "text", ["point"], None)
+    # повторный прогон: картинки в ленте нет — сохраняется найденная ранее; кэш TL;DR цел
+    b = dict(a, image_url=None, title="Нейросеть v2")
+    db.replace_pool([b, item("https://a.ru/2", "Другая")])
+    got = db.get(row["id"])
+    assert got["title"] == "Нейросеть v2" and got["image_url"] == "https://i/1.jpg" and got["tldr"] == '["point"]'
+    db.replace_pool([item("https://a.ru/2", "Другая")])
+    assert db.get(row["id"]) is None
+
+
+def test_merge_pool_keeps_items_from_failed_feeds(tmp_path, monkeypatch):
+    old = item("https://a.ru/old", "Старая новость из упавшей ленты про нейросети")
+    stale = item("https://a.ru/stale", "Совсем старая", age_h=100)
+    fresh = item("https://b.ru/new", "Свежая новость про видеокарты", topics=["hardware"])
+    out = collector.merge_pool([fresh], [old, stale])
+    assert {o["external_id"] for o in out} == {"a.ru/old", "b.ru/new"}

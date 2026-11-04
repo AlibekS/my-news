@@ -1,8 +1,23 @@
-"""Настройки. Любой параметр можно переопределить переменной окружения MYNEWS_*."""
+"""Настройки. Любой параметр можно переопределить переменной окружения MYNEWS_*
+или строкой в файле .env в корне проекта (например: MYNEWS_PORT=8080)."""
 import os
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+
+def _load_env_file(path: Path) -> None:
+    if not path.is_file():
+        return
+    for line in path.read_text(encoding="utf-8-sig").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
+
+
+_load_env_file(BASE_DIR / ".env")
 
 
 def _env(name: str, default: str) -> str:
@@ -11,60 +26,26 @@ def _env(name: str, default: str) -> str:
 
 HOST = _env("HOST", "127.0.0.1")
 PORT = int(_env("PORT", "8000"))
-DB_PATH = Path(_env("DB_PATH", str(BASE_DIR / "data" / "news.db")))
+DATA_DIR = Path(_env("DATA_DIR", str(BASE_DIR / "data")))
+DB_PATH = Path(_env("DB_PATH", str(DATA_DIR / "news.db")))
+STATUS_PATH = DATA_DIR / "sources.json"
 STATIC_DIR = BASE_DIR / "static"
 
 # Как часто фоновый воркер обновляет ленту (часы).
 REFRESH_INTERVAL_HOURS = float(_env("REFRESH_INTERVAL_HOURS", "3"))
 
-# Порог внимания: проходит публикация, у которой > MIN_COMMENTS комментариев
-# ИЛИ > MIN_SCORE апвоутов/поинтов.
-MIN_COMMENTS = int(_env("MIN_COMMENTS", "100"))
-MIN_SCORE = int(_env("MIN_SCORE", "250"))
+# Новости старше этого окна в выдачу не попадают (часы).
+WINDOW_HOURS = float(_env("WINDOW_HOURS", "36"))
 
-# Сколько новостей на категорию показывать (ТЗ: 7–10).
-PER_CATEGORY_LIMIT = int(_env("PER_CATEGORY_LIMIT", "8"))
+# Сколько новостей показывать в каждой теме.
+PER_TOPIC_LIMIT = int(_env("PER_TOPIC_LIMIT", "9"))
 
-# Окно свежести: учитываются публикации за последние N часов.
-WINDOW_HOURS = float(_env("WINDOW_HOURS", "24"))
+# Hacker News: берём англоязычные истории, набравшие больше N поинтов.
+HN_ENABLED = _env("HN", "1") == "1"
+HN_MIN_POINTS = int(_env("HN_MIN_POINTS", "150"))
 
-# Если «горячих» новостей в категории меньше этого числа — добираем из RSS.
-RSS_FALLBACK_MIN = int(_env("RSS_FALLBACK_MIN", "3"))
-
-# Reddit JSON API работает без ключей, но требует осмысленный User-Agent.
 USER_AGENT = _env(
     "USER_AGENT",
-    "python:my-news-dashboard:1.0 (personal localhost news reader)",
+    "Mozilla/5.0 (compatible; VolnaNewsReader/2.0; personal localhost RSS reader)",
 )
 HTTP_TIMEOUT = float(_env("HTTP_TIMEOUT", "15"))
-
-CATEGORIES = {
-    "games": "Игры",
-    "hardware": "Железо",
-    "ai": "ИИ",
-}
-
-REDDIT_SUBS = {
-    "games": ["Games", "pcgaming"],
-    "hardware": ["hardware", "buildapc"],
-    "ai": ["LocalLLaMA", "MachineLearning"],
-}
-
-RSS_FEEDS = {
-    "games": [
-        ("Rock Paper Shotgun", "https://www.rockpapershotgun.com/feed"),
-        ("Eurogamer", "https://www.eurogamer.net/feed"),
-    ],
-    "hardware": [
-        ("Tom's Hardware", "https://www.tomshardware.com/feeds/all"),
-        ("VideoCardz", "https://videocardz.com/feed"),
-        ("AnandTech", "https://www.anandtech.com/rss/"),
-    ],
-    "ai": [
-        ("Hugging Face Blog", "https://huggingface.co/blog/feed.xml"),
-    ],
-}
-
-# Трекер релизов моделей: Hugging Face trending (лайки как метрика внимания).
-HF_TRENDING_ENABLED = _env("HF_TRENDING", "1") == "1"
-HF_MIN_LIKES = int(_env("HF_MIN_LIKES", "100"))

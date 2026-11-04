@@ -1,21 +1,26 @@
-"""Сбор и фильтрация новостей.
+"""Сбор, классификация, дедупликация и ранжирование новостей.
 
-Конвейер одного прогона:
-  1. Параллельно опрашиваем Reddit (top за сутки), Hacker News, RSS и HF trending.
-  2. Оставляем только публикации, преодолевшие порог внимания.
-  3. Сливаем со свежими записями из БД (если источник временно недоступен,
-     его новости не пропадают до конца окна).
-  4. Дедуплицируем: из похожих инфоповодов остаётся вариант с бóльшим
-     числом комментариев.
-  5. Берём топ-N на категорию, при нехватке добираем свежими RSS-заголовками.
-  6. Подтягиваем превью-картинки (og:image) для карточек без изображения.
+Прогон обновления:
+  1. Параллельно читаем все RSS-ленты из topics.py (+ Hacker News).
+  2. Раскладываем новости по темам: лента темы + ключевые слова в заголовке.
+  3. Сливаем со свежими записями из БД (если лента временно не ответила,
+     её новости не пропадают до конца окна).
+  4. Склеиваем дубли: одна и та же новость с разных сайтов становится одной
+     карточкой — приоритет у русскоязычного источника, остальные попадают в
+     «Также пишут», а их число поднимает новость в рейтинге.
+  5. Для верхних новостей каждой темы подтягиваем превью (og:image).
+
+Рейтинг («горячесть») считается при выдаче: свежесть + сколько сайтов написали
+об этом + обсуждаемость (комментарии/поинты, где они есть) + вес ленты.
 """
 from __future__ import annotations
 
 import asyncio
 import calendar
 import html
+import json
 import logging
+import math
 import re
 import time
 from urllib.parse import urlsplit, urlunsplit
@@ -24,335 +29,381 @@ import feedparser
 import httpx
 
 from . import config, db
+from .topics import TOPICS, all_feeds
 
 log = logging.getLogger("mynews.collector")
 
-Item = dict  # ключи совпадают с колонками таблицы news
+Item = dict
 
 # --------------------------------------------------------------------------- #
-# Классификация заголовков Hacker News по темам
+# Ключевые слова
 # --------------------------------------------------------------------------- #
-KEYWORDS = {
-    "ai": re.compile(
-        r"\b(ai|a\.i\.|agi|llms?|gpts?|gpt-\d\w*|chatgpt|openai|anthropic|claude|gemini|"
-        r"llama|mistral|deepseek|qwen|grok|transformers?|neural|machine learning|"
-        r"deep learning|diffusion|hugging ?face|inference|fine-?tun\w*|rlhf|embeddings?|"
-        r"copilot|chatbots?|language models?|reasoning models?|ai agents?|agentic)\b",
-        re.I,
-    ),
-    "hardware": re.compile(
-        r"\b(cpus?|gpus?|nvidia|amd|intel|radeon|geforce|rtx|ryzen|threadripper|epyc|"
-        r"xeon|risc-v|tsmc|semiconductors?|chips?|chipmakers?|silicon|motherboards?|"
-        r"ssds?|nvme|dram|ddr5|hbm|processors?|lithography|asml|qualcomm|snapdragon|"
-        r"raspberry pi|fpgas?|m[1-6] (pro|max|ultra)|apple silicon|overclock\w*)\b",
-        re.I,
-    ),
-    "games": re.compile(
-        r"\b(video ?games?|games?|gaming|gamers?|steam|valve|nintendo|playstation|ps5|"
-        r"xbox|unreal engine|godot|esports|game ?dev|speedrun\w*)\b",
-        re.I,
-    ),
-}
-CATEGORY_PRIORITY = ["ai", "hardware", "games"]
+def _keyword_pattern(keyword: str) -> str:
+    words = keyword.strip().lower().split()
+    parts = []
+    for w in words:
+        if w.endswith("$"):
+            parts.append(re.escape(w[:-1]) + r"(?!\w)")
+        else:
+            parts.append(re.escape(w) + r"\w*")
+    return r"(?<!\w)" + r"\s+".join(parts)
 
 
-def classify(title: str) -> str | None:
-    hits = {cat: len(rx.findall(title)) for cat, rx in KEYWORDS.items()}
-    best = max(hits.values())
-    if best == 0:
-        return None
-    return next(c for c in CATEGORY_PRIORITY if hits[c] == best)
+def compile_matcher(keywords: list[str], acronyms: list[str] | None = None) -> list[re.Pattern]:
+    patterns = []
+    kws = [k for k in keywords if k.strip()]
+    if kws:
+        patterns.append(re.compile("|".join(_keyword_pattern(k) for k in kws), re.I))
+    acr = [a for a in (acronyms or []) if a.strip()]
+    if acr:
+        patterns.append(re.compile(r"(?<!\w)(?:" + "|".join(re.escape(a) for a in acr) + r")(?!\w)"))
+    return patterns
+
+
+def count_hits(patterns: list[re.Pattern], text: str) -> int:
+    return sum(len(p.findall(text)) for p in patterns)
+
+
+MATCHERS = {k: compile_matcher(t["keywords"], t.get("acronyms")) for k, t in TOPICS.items()}
+
+
+def classify(title: str, summary: str = "", feed: dict | None = None) -> list[str]:
+    """Темы новости: совпадение в заголовке, или ≥2 совпадения в начале описания."""
+    lead = (summary or "")[:400]
+    topics = []
+    for key, pats in MATCHERS.items():
+        if count_hits(pats, title) >= 1 or count_hits(pats, lead) >= 2:
+            topics.append(key)
+    if feed and feed.get("topic"):
+        mode = feed.get("mode", "bound")
+        if mode == "bound" and feed["topic"] not in topics:
+            topics.insert(0, feed["topic"])
+        elif mode == "fallback" and not topics:
+            topics = [feed["topic"]]
+    return topics
 
 
 # --------------------------------------------------------------------------- #
-# Порог внимания и дедупликация
+# Утилиты
 # --------------------------------------------------------------------------- #
-def passes_threshold(item: Item) -> bool:
-    return (
-        item.get("comments_count", 0) > config.MIN_COMMENTS
-        or item.get("score", 0) > config.MIN_SCORE
-    )
-
-
-STOPWORDS = set(
-    """a an the and or of to in on for with from by at as is are was were be been it its
-    this that these those new now just how why what who will can has have had not no
-    you your we our they their i my he she his her vs via about after over into than
-    more most up out first says said report reportedly hn show ask""".split()
-)
-_TOKEN_RX = re.compile(r"[a-z0-9]+(?:[.\-][a-z0-9]+)*")
-
-
-def title_tokens(title: str) -> set[str]:
-    toks = _TOKEN_RX.findall(title.lower())
-    return {t for t in toks if t not in STOPWORDS and (len(t) > 2 or t.isdigit())}
-
-
 def canonical_url(url: str | None) -> str | None:
     if not url:
         return None
     try:
-        p = urlsplit(url)
+        p = urlsplit(url.strip())
     except ValueError:
         return None
-    host = p.netloc.lower().removeprefix("www.").removeprefix("old.")
+    host = p.netloc.lower().removeprefix("www.").removeprefix("m.")
     if not host:
         return None
-    return urlunsplit(("", host, p.path.rstrip("/"), "", ""))
+    query = p.query if "news.ycombinator.com" in host else ""
+    return urlunsplit(("", host, p.path.rstrip("/"), query, ""))[2:]
 
 
-def is_duplicate(a: Item, b: Item) -> bool:
-    ua, ub = canonical_url(a.get("source_url")), canonical_url(b.get("source_url"))
-    # Ссылка на одну и ту же статью (но не на сам тред обсуждения)
-    if ua and ua == ub and a.get("source_url") != a.get("discussion_url"):
-        return True
-    ta, tb = title_tokens(a["title"]), title_tokens(b["title"])
-    if not ta or not tb:
-        return False
-    common = ta & tb
-    jaccard = len(common) / len(ta | tb)
-    overlap = len(common) / min(len(ta), len(tb))
-    return (len(common) >= 3 and jaccard >= 0.5) or (len(common) >= 4 and overlap >= 0.75)
+def detect_lang(text: str) -> str:
+    letters = [c for c in text if c.isalpha()]
+    if not letters:
+        return "en"
+    cyr = sum(1 for c in letters if "а" <= c.lower() <= "я" or c in "ёЁ")
+    return "ru" if cyr / len(letters) > 0.3 else "en"
 
 
-def rank_key(item: Item):
-    return (item.get("comments_count", 0), item.get("score", 0))
+def strip_html(text: str) -> str:
+    text = re.sub(r"<(script|style)[^>]*>.*?</\1>", " ", text or "", flags=re.S | re.I)
+    text = re.sub(r"<br\s*/?>|</p>", "\n", text, flags=re.I)
+    text = re.sub(r"<[^>]+>", " ", text)
+    text = html.unescape(text)
+    text = re.sub(r"[ \t\xa0]+", " ", text)
+    return re.sub(r"\s*\n\s*", "\n", text).strip()
 
 
-def deduplicate(items: list[Item]) -> list[Item]:
-    """Группирует похожие инфоповоды, оставляя самый обсуждаемый вариант.
-
-    Сравнение идёт со всеми членами группы, поэтому дубли ловятся транзитивно
-    (A≈B по заголовку, B≈C по ссылке → одна группа).
-    """
-    groups: list[tuple[Item, list[Item]]] = []  # (победитель, все члены группы)
-    for item in sorted(items, key=rank_key, reverse=True):
-        group = next((g for g in groups if any(is_duplicate(m, item) for m in g[1])), None)
-        if group is None:
-            groups.append((dict(item), [item]))
-            continue
-        winner, members = group
-        members.append(item)
-        # Победитель остаётся, но может «позаимствовать» картинку/описание.
-        for field in ("image_url", "summary"):
-            if not winner.get(field) and item.get(field):
-                winner[field] = item[field]
-        # Если победитель — тред без внешней ссылки, а у дубля есть статья.
-        if winner.get("source_url") == winner.get("discussion_url") and item.get("source_url") \
-                and item.get("source_url") != item.get("discussion_url"):
-            winner["source_url"] = item["source_url"]
-    return [winner for winner, _ in groups]
-
-
-def select_top(hot: list[Item], rss: list[Item]) -> list[Item]:
-    result: list[Item] = []
-    for cat in config.CATEGORIES:
-        top = sorted((i for i in hot if i["category"] == cat), key=rank_key, reverse=True)
-        top = top[: config.PER_CATEGORY_LIMIT]
-        if len(top) < config.RSS_FALLBACK_MIN:
-            fillers = sorted(
-                (i for i in rss if i["category"] == cat and not any(is_duplicate(i, t) for t in hot)),
-                key=lambda i: i["created_at"],
-                reverse=True,
-            )
-            top += fillers[: config.RSS_FALLBACK_MIN - len(top)]
-        result += top
-    return result
+IMG_RX = re.compile(r"""<img[^>]+src=["']([^"']+)["']""", re.I)
 
 
 # --------------------------------------------------------------------------- #
 # Источники
 # --------------------------------------------------------------------------- #
-REDDIT_MEDIA_HOSTS = ("i.redd.it", "v.redd.it", "reddit.com", "i.imgur.com")
-IMAGE_EXT_RX = re.compile(r"\.(jpe?g|png|webp|gif)(\?.*)?$", re.I)
-
-
-def parse_reddit(payload: dict, category: str, sub: str) -> list[Item]:
+def parse_feed(content: bytes, feed: dict) -> list[Item]:
+    parsed = feedparser.parse(content)
     items = []
-    for child in payload.get("data", {}).get("children", []):
-        d = child.get("data", {})
-        if d.get("stickied") or d.get("over_18") or not d.get("title"):
+    for e in parsed.entries:
+        link = e.get("link")
+        title = strip_html(e.get("title", "")).replace("\n", " ")
+        if not link or not title:
             continue
-        discussion = "https://www.reddit.com" + d.get("permalink", "")
-        url = d.get("url_overridden_by_dest") or d.get("url") or discussion
-        if d.get("is_self"):
-            url = discussion
+        ts = e.get("published_parsed") or e.get("updated_parsed")
+        created = calendar.timegm(ts) if ts else int(time.time())
+        raw = e.get("summary", "")
+        if e.get("content"):
+            raw = max((c.get("value", "") for c in e.content), key=len, default=raw) or raw
+        summary = strip_html(raw)
         image = None
-        try:
-            image = d["preview"]["images"][0]["source"]["url"]
-        except (KeyError, IndexError, TypeError):
-            pass
-        if not image and IMAGE_EXT_RX.search(url or ""):
-            image = url
-        if not image and str(d.get("thumbnail", "")).startswith("http"):
-            image = d["thumbnail"]
-        summary = (d.get("selftext") or "").strip()
-        items.append({
-            "external_id": f"reddit:{d.get('id')}",
-            "category": category,
-            "title": html.unescape(d["title"]).strip(),
-            "summary": summary[:4000] or None,
-            "image_url": html.unescape(image) if image else None,
-            "source_url": url,
-            "discussion_url": discussion,
-            "source": f"r/{d.get('subreddit') or sub}",
-            "comments_count": int(d.get("num_comments") or 0),
-            "score": int(d.get("score") or 0),
-            "created_at": int(d.get("created_utc") or time.time()),
-        })
-    return items
-
-
-async def fetch_reddit(client: httpx.AsyncClient) -> list[Item]:
-    items: list[Item] = []
-    for category, subs in config.REDDIT_SUBS.items():
-        for sub in subs:
-            for host in ("www.reddit.com", "old.reddit.com"):
-                url = f"https://{host}/r/{sub}/top.json?t=day&limit=50&raw_json=1"
-                try:
-                    r = await client.get(url)
-                    r.raise_for_status()
-                    items += parse_reddit(r.json(), category, sub)
+        for key in ("media_content", "media_thumbnail"):
+            media = e.get(key)
+            if media and media[0].get("url") and "image" in media[0].get("type", "image"):
+                image = media[0]["url"]
+                break
+        if not image:
+            for enc in e.get("enclosures", []):
+                if str(enc.get("type", "")).startswith("image") and enc.get("href"):
+                    image = enc["href"]
                     break
-                except Exception as e:  # noqa: BLE001
-                    log.warning("Reddit r/%s via %s: %s", sub, host, e)
-            await asyncio.sleep(1)  # вежливость к неавторизованному API
+        if not image:
+            m = IMG_RX.search(raw)
+            if m and not m.group(1).startswith("data:"):
+                image = html.unescape(m.group(1))
+        ext = canonical_url(link)
+        if not ext:
+            continue
+        comments = str(e.get("slash_comments", ""))
+        items.append({
+            "external_id": ext,
+            "topics": classify(title, summary, feed),
+            "title": title,
+            "summary": summary[:1500] or None,
+            "image_url": image,
+            "source_url": link,
+            "discussion_url": None,
+            "source": feed["name"],
+            "lang": detect_lang(title),
+            "comments_count": int(comments) if comments.isdigit() else 0,
+            "score": 0,
+            "weight": float(feed.get("weight", 0)),
+            "also": [],
+            "created_at": int(min(created, time.time())),
+        })
     return items
 
 
 def parse_hn(payload: dict) -> list[Item]:
     items = []
     for hit in payload.get("hits", []):
-        title = hit.get("title") or ""
-        category = classify(title)
-        if not category:
+        title = (hit.get("title") or "").strip()
+        topics = classify(title)
+        if not title or not topics:
             continue
         discussion = f"https://news.ycombinator.com/item?id={hit['objectID']}"
+        url = hit.get("url") or discussion
         items.append({
-            "external_id": f"hn:{hit['objectID']}",
-            "category": category,
-            "title": title.strip(),
-            "summary": (hit.get("story_text") or None),
+            "external_id": canonical_url(url),
+            "topics": topics,
+            "title": title,
+            "summary": strip_html(hit.get("story_text") or "") or None,
             "image_url": None,
-            "source_url": hit.get("url") or discussion,
+            "source_url": url,
             "discussion_url": discussion,
             "source": "Hacker News",
+            "lang": "en",
             "comments_count": int(hit.get("num_comments") or 0),
             "score": int(hit.get("points") or 0),
+            "weight": 0.0,
+            "also": [],
             "created_at": int(hit.get("created_at_i") or time.time()),
         })
     return items
 
 
-async def fetch_hn(client: httpx.AsyncClient) -> list[Item]:
-    since = int(time.time() - config.WINDOW_HOURS * 3600)
-    min_points = min(config.MIN_SCORE, 50)
-    url = (
-        "https://hn.algolia.com/api/v1/search"
-        f"?tags=story&hitsPerPage=500&numericFilters=created_at_i>{since},points>{min_points}"
-    )
-    r = await client.get(url)
-    r.raise_for_status()
-    return parse_hn(r.json())
-
-
-def _strip_html(text: str) -> str:
-    text = re.sub(r"<[^>]+>", " ", text or "")
-    return re.sub(r"\s+", " ", html.unescape(text)).strip()
-
-
-def parse_rss(content: bytes, category: str, name: str) -> list[Item]:
-    feed = feedparser.parse(content)
-    items = []
-    for e in feed.entries:
-        link = e.get("link")
-        if not link or not e.get("title"):
-            continue
-        ts = e.get("published_parsed") or e.get("updated_parsed")
-        created = calendar.timegm(ts) if ts else int(time.time())
-        image = None
-        for key in ("media_content", "media_thumbnail"):
-            media = e.get(key)
-            if media and media[0].get("url"):
-                image = media[0]["url"]
-                break
-        if not image:
-            for enc in e.get("enclosures", []):
-                if str(enc.get("type", "")).startswith("image"):
-                    image = enc.get("href")
-                    break
-        items.append({
-            "external_id": f"rss:{link}",
-            "category": category,
-            "title": _strip_html(e.title),
-            "summary": _strip_html(e.get("summary", ""))[:1000] or None,
-            "image_url": image,
-            "source_url": link,
-            "discussion_url": None,
-            "source": name,
-            "comments_count": 0,
-            "score": 0,
-            "created_at": int(created),
-        })
-    return items
-
-
-async def fetch_rss(client: httpx.AsyncClient) -> list[Item]:
-    async def one(category: str, name: str, url: str) -> list[Item]:
+async def fetch_feed(client: httpx.AsyncClient, feed: dict, sem: asyncio.Semaphore) -> tuple[list[Item], dict]:
+    status = {"name": feed["name"], "url": feed["url"], "topic": feed.get("topic"), "ok": False, "count": 0}
+    async with sem:
         try:
-            r = await client.get(url)
+            r = await client.get(feed["url"])
             r.raise_for_status()
-            return parse_rss(r.content, category, name)
+            items = await asyncio.to_thread(parse_feed, r.content, feed)
+            if not items:
+                raise ValueError("лента пуста или это не RSS")
+            status.update(ok=True, count=len(items))
+            return items, status
         except Exception as e:  # noqa: BLE001
-            log.warning("RSS %s: %s", name, e)
-            return []
-
-    jobs = [one(c, n, u) for c, feeds in config.RSS_FEEDS.items() for n, u in feeds]
-    return [i for chunk in await asyncio.gather(*jobs) for i in chunk]
+            status["error"] = str(e).split("\n")[0][:200]
+            log.warning("Лента «%s» не ответила: %s", feed["name"], status["error"])
+            return [], status
 
 
-def parse_hf(payload: list) -> list[Item]:
-    items = []
-    for m in payload:
-        model_id = m.get("id") or m.get("modelId")
-        likes = int(m.get("likes") or 0)
-        if not model_id or likes < config.HF_MIN_LIKES:
+async def fetch_hn(client: httpx.AsyncClient) -> tuple[list[Item], dict]:
+    status = {"name": "Hacker News", "url": "https://news.ycombinator.com", "topic": None, "ok": False, "count": 0}
+    since = int(time.time() - config.WINDOW_HOURS * 3600)
+    url = ("https://hn.algolia.com/api/v1/search?tags=story&hitsPerPage=300"
+           f"&numericFilters=created_at_i>{since},points>{config.HN_MIN_POINTS}")
+    try:
+        r = await client.get(url)
+        r.raise_for_status()
+        items = parse_hn(r.json())
+        status.update(ok=True, count=len(items))
+        return items, status
+    except Exception as e:  # noqa: BLE001
+        status["error"] = str(e).split("\n")[0][:200]
+        log.warning("Hacker News не ответил: %s", status["error"])
+        return [], status
+
+
+# --------------------------------------------------------------------------- #
+# Дедупликация
+# --------------------------------------------------------------------------- #
+STOPWORDS = set(
+    """a an the and or of to in on for with from by at as is are was were be been it its this that
+    new now just how why what who will can has have had not no you your we our they their about
+    after over into than more most up out first says said report reportedly show ask vs via
+    и в во не что на с со как а то все так но да к у же за бы по только из о от для до при
+    это этот эта эти уже или ни был была было были будет может могут свой своя свои его ее их
+    новый новая новое новые новым новой новую нового новых стал стала стало теперь также ещё еще""".split()
+)
+TOKEN_RX = re.compile(r"[a-zа-яё0-9]+(?:[.\-][a-zа-яё0-9]+)*", re.I)
+
+
+STEM = 5
+
+
+def title_tokens(title: str) -> set[str]:
+    out = set()
+    for t in TOKEN_RX.findall(title.lower().replace("ё", "е")):
+        if t in STOPWORDS or (len(t) < 3 and not t.isdigit()):
             continue
-        created = m.get("createdAt") or ""
-        try:
-            created_ts = calendar.timegm(time.strptime(created[:19], "%Y-%m-%dT%H:%M:%S"))
-        except ValueError:
-            created_ts = int(time.time())
-        url = f"https://huggingface.co/{model_id}"
-        items.append({
-            "external_id": f"hf:{model_id}",
-            "category": "ai",
-            "title": f"В тренде Hugging Face: {model_id}",
-            "summary": f"Модель {model_id} — {m.get('pipeline_tag') or 'модель'}, "
-                       f"{likes} лайков, {m.get('downloads', 0)} загрузок.",
-            "image_url": None,
-            "source_url": url,
-            "discussion_url": url + "/discussions",
-            "source": "Hugging Face",
-            "comments_count": 0,
-            "score": likes,
-            "created_at": created_ts,
-        })
-    return items
+        out.add(t[:STEM] if t.isalpha() else t)  # грубый стемминг: «долгих» ≈ «долгим»
+    return out
 
 
-async def fetch_hf(client: httpx.AsyncClient) -> list[Item]:
-    r = await client.get("https://huggingface.co/api/models?sort=trendingScore&limit=15")
-    r.raise_for_status()
-    return parse_hf(r.json())
+def _has_digit(t: str) -> bool:
+    return any(c.isdigit() for c in t)
+
+
+def is_duplicate(a: Item, b: Item, ta: set | None = None, tb: set | None = None) -> bool:
+    if a["external_id"] == b["external_id"]:
+        return True
+    ta = ta if ta is not None else title_tokens(a["title"])
+    tb = tb if tb is not None else title_tokens(b["title"])
+    if not ta or not tb:
+        return False
+    # Номера моделей различают новости: «RTX 5090» ≠ «RTX 5080».
+    da, dbs = {t for t in ta if _has_digit(t)}, {t for t in tb if _has_digit(t)}
+    if da and dbs and not (da & dbs):
+        return False
+    common = len(ta & tb)
+    jaccard = common / len(ta | tb)
+    overlap = common / min(len(ta), len(tb))
+    return (common >= 3 and jaccard >= 0.45) or (common >= 4 and overlap >= 0.6)
+
+
+def winner_key(item: Item):
+    return (
+        item.get("lang") == "ru",
+        bool(item.get("summary")),
+        item.get("weight", 0),
+        item.get("comments_count", 0),
+        -item.get("created_at", 0),
+    )
+
+
+def deduplicate(items: list[Item]) -> list[Item]:
+    """Склеивает одинаковые новости (по ссылке или похожему заголовку).
+
+    Если новость похожа сразу на несколько групп, группы объединяются —
+    результат не зависит от порядка, в котором пришли заголовки.
+    """
+    items = sorted(items, key=winner_key, reverse=True)
+    groups: list[dict | None] = []   # {"winner", "members": [(item, tokens)]}
+    index: dict[str, set[int]] = {}  # токен/URL → номера групп
+    for item in items:
+        toks = title_tokens(item["title"])
+        keys = toks | {"url:" + item["external_id"]}
+        candidates: set[int] = set()
+        for k in keys:
+            candidates |= index.get(k, set())
+        matched = [gi for gi in sorted(candidates)
+                   if groups[gi] and any(is_duplicate(m, item, mt, toks) for m, mt in groups[gi]["members"])]
+        if not matched:
+            gi = len(groups)
+            groups.append({"winner": dict(item, also=list(item.get("also") or [])), "members": []})
+        else:
+            gi = matched[0]
+            _merge(groups[gi]["winner"], item)
+            for other in matched[1:]:  # объединяем группы, связанные этой новостью
+                for m, mt in groups[other]["members"]:
+                    _merge(groups[gi]["winner"], m)
+                    groups[gi]["members"].append((m, mt))
+                    for k in mt | {"url:" + m["external_id"]}:
+                        index.setdefault(k, set()).add(gi)
+                groups[other] = None
+        groups[gi]["members"].append((item, toks))
+        for k in keys:
+            index.setdefault(k, set()).add(gi)
+    return [g["winner"] for g in groups if g]
+
+
+def _merge(winner: Item, other: Item) -> None:
+    seen = {canonical_url(winner["source_url"])} | {canonical_url(a["url"]) for a in winner["also"]}
+    for entry in [{"source": other["source"], "url": other["source_url"]}] + list(other.get("also") or []):
+        cu = canonical_url(entry["url"])
+        if cu not in seen and entry["source"] != winner["source"]:
+            winner["also"].append(entry)
+            seen.add(cu)
+    winner["topics"] = list(dict.fromkeys((winner.get("topics") or []) + (other.get("topics") or [])))
+    for field in ("image_url", "summary"):
+        if not winner.get(field) and other.get(field):
+            winner[field] = other[field]
+    if other.get("discussion_url") and other.get("comments_count", 0) >= winner.get("comments_count", 0):
+        winner["discussion_url"] = other["discussion_url"]
+        winner["comments_count"] = other["comments_count"]
+        winner["score"] = max(winner.get("score", 0), other.get("score", 0))
+
+
+# --------------------------------------------------------------------------- #
+# Рейтинг и выдача
+# --------------------------------------------------------------------------- #
+def hotness(item: dict, now: float | None = None) -> float:
+    now = now or time.time()
+    age_h = max(0.0, (now - item["created_at"]) / 3600)
+    fresh = 3.0 * math.exp(-age_h / 12)
+    coverage = 2.5 * len(item.get("also") or [])
+    engagement = (1.2 * math.log10(1 + (item.get("comments_count") or 0))
+                  + 0.8 * math.log10(1 + (item.get("score") or 0)))
+    return fresh + coverage + engagement + (item.get("weight") or 0)
+
+
+def custom_matcher(keywords: str) -> list[re.Pattern]:
+    return compile_matcher([k for k in re.split(r"[,;\n]", keywords or "") if k.strip()])
+
+
+def build_sections(pool: list[dict], topic_ids: list[str], custom: list[dict], lang: str | None,
+                   limit: int | None = None) -> list[dict]:
+    """Разбивает пул на секции по темам пользователя; новость не повторяется."""
+    limit = limit or config.PER_TOPIC_LIMIT
+    now = time.time()
+    if lang == "ru":
+        pool = [p for p in pool if p.get("lang") == "ru"]
+    ranked = sorted(pool, key=lambda p: hotness(p, now), reverse=True)
+    used: set[int] = set()
+    custom_by_id = {str(c.get("id")): c for c in custom}
+    sections = []
+    for tid in topic_ids:
+        if tid in TOPICS:
+            def match(p, tid=tid):
+                return tid in p["topics"]
+        elif tid in custom_by_id:
+            pats = custom_matcher(custom_by_id[tid].get("keywords", ""))
+            if not pats:
+                sections.append({"topic": tid, "items": []})
+                continue
+
+            def match(p, pats=pats):
+                return count_hits(pats, p["title"] + " " + (p.get("summary") or "")[:500]) > 0
+        else:
+            continue
+        chosen = []
+        for p in ranked:
+            if p["id"] not in used and match(p):
+                chosen.append(p)
+                if len(chosen) >= limit:
+                    break
+        used.update(p["id"] for p in chosen)
+        sections.append({"topic": tid, "items": chosen})
+    return sections
 
 
 # --------------------------------------------------------------------------- #
 # Превью-картинки
 # --------------------------------------------------------------------------- #
-OG_RX = re.compile(
-    r"""<meta[^>]+(?:property|name)=["'](?:og:image|twitter:image)(?::src)?["'][^>]*>""", re.I
-)
+OG_RX = re.compile(r"""<meta[^>]+(?:property|name)=["'](?:og:image|twitter:image)(?::src)?["'][^>]*>""", re.I)
 CONTENT_RX = re.compile(r"""content=["']([^"']+)["']""", re.I)
 
 
@@ -366,21 +417,28 @@ def extract_og_image(page: str) -> str | None:
 
 
 async def enrich_images(client: httpx.AsyncClient, items: list[Item]) -> None:
-    sem = asyncio.Semaphore(6)
+    sem = asyncio.Semaphore(8)
 
     async def one(item: Item):
-        url = item.get("source_url")
-        if item.get("image_url") or not url or url == item.get("discussion_url"):
-            return
         async with sem:
             try:
-                r = await client.get(url, timeout=8)
-                if "html" in r.headers.get("content-type", ""):
-                    item["image_url"] = extract_og_image(r.text[:300_000])
-            except Exception as e:  # noqa: BLE001
-                log.debug("og:image %s: %s", url, e)
+                r = await client.get(item["source_url"], timeout=8)
+                ctype = r.headers.get("content-type", "")
+                item["image_url"] = (extract_og_image(r.text[:300_000]) if "html" in ctype else None) or ""
+            except Exception:  # noqa: BLE001
+                item["image_url"] = ""
 
-    await asyncio.gather(*(one(i) for i in items))
+    await asyncio.gather(*(one(i) for i in items if i.get("image_url") is None and i.get("source_url")))
+
+
+def top_candidates(items: list[Item], per_topic: int) -> list[Item]:
+    now = time.time()
+    ranked = sorted(items, key=lambda p: hotness(p, now), reverse=True)
+    picked: dict[int, Item] = {}
+    for tid in TOPICS:
+        for p in [p for p in ranked if tid in p["topics"]][:per_topic]:
+            picked[id(p)] = p
+    return list(picked.values())
 
 
 # --------------------------------------------------------------------------- #
@@ -391,44 +449,39 @@ _lock = asyncio.Lock()
 
 def make_client() -> httpx.AsyncClient:
     return httpx.AsyncClient(
-        headers={"User-Agent": config.USER_AGENT},
+        headers={"User-Agent": config.USER_AGENT, "Accept-Language": "ru,en;q=0.8"},
         timeout=config.HTTP_TIMEOUT,
         follow_redirects=True,
     )
 
 
-async def gather_sources(client: httpx.AsyncClient) -> tuple[list[Item], list[Item], list[str]]:
-    sources = {"reddit": fetch_reddit(client), "hn": fetch_hn(client), "rss": fetch_rss(client)}
-    if config.HF_TRENDING_ENABLED:
-        sources["hf"] = fetch_hf(client)
-    results = await asyncio.gather(*sources.values(), return_exceptions=True)
-    hot, rss, errors = [], [], []
-    for name, res in zip(sources, results):
-        if isinstance(res, Exception):
-            log.warning("Источник %s недоступен: %s", name, res)
-            errors.append(name)
-        elif name == "rss":
-            rss = res
-        else:
-            hot += res
-    if not rss and "rss" not in errors and config.RSS_FEEDS:
-        errors.append("rss")
-    return hot, rss, errors
-
-
-def build_selection(fresh_hot: list[Item], rss: list[Item], existing: list[dict]) -> list[Item]:
+def merge_pool(fresh: list[Item], existing: list[Item]) -> list[Item]:
     cutoff = time.time() - config.WINDOW_HOURS * 3600
     by_id: dict[str, Item] = {}
-    # Записи из БД — запасной вариант, свежие данные их перекрывают.
-    for row in existing:
-        if row["created_at"] >= cutoff and not row["external_id"].startswith("rss:"):
-            by_id[row["external_id"]] = {f: row.get(f) for f in db.FIELDS}
-    for item in fresh_hot:
+    for item in existing:
         if item["created_at"] >= cutoff:
             by_id[item["external_id"]] = item
-    hot = deduplicate([i for i in by_id.values() if passes_threshold(i)])
-    fresh_rss = [i for i in rss if i["created_at"] >= cutoff]
-    return select_top(hot, deduplicate(fresh_rss))
+    for item in fresh:
+        if item["created_at"] >= cutoff:
+            prev = by_id.get(item["external_id"])
+            if prev and prev.get("image_url") is not None and not item.get("image_url"):
+                item["image_url"] = prev["image_url"]
+            by_id[item["external_id"]] = item
+    return deduplicate([i for i in by_id.values() if i["topics"]])
+
+
+def save_status(statuses: list[dict]) -> None:
+    config.STATUS_PATH.parent.mkdir(parents=True, exist_ok=True)
+    config.STATUS_PATH.write_text(
+        json.dumps({"checked_at": int(time.time()), "feeds": statuses}, ensure_ascii=False), encoding="utf-8"
+    )
+
+
+def load_status() -> dict:
+    try:
+        return json.loads(config.STATUS_PATH.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {"checked_at": None, "feeds": []}
 
 
 async def refresh() -> dict:
@@ -436,18 +489,23 @@ async def refresh() -> dict:
     async with _lock:
         started = time.time()
         async with make_client() as client:
-            hot, rss, errors = await gather_sources(client)
-            if not hot and not rss:
-                log.error("Ни один источник не ответил — лента не изменена")
-                return {"ok": False, "items": len(db.list_news()), "errors": errors}
-            selection = build_selection(hot, rss, db.all_rows())
-            await enrich_images(client, selection)
-        db.replace_selection(selection)
+            sem = asyncio.Semaphore(10)
+            jobs = [fetch_feed(client, f, sem) for f in all_feeds()]
+            if config.HN_ENABLED:
+                jobs.append(fetch_hn(client))
+            results = await asyncio.gather(*jobs)
+            fresh = [i for items, _ in results for i in items]
+            statuses = [s for _, s in results]
+            save_status(statuses)
+            ok = sum(1 for s in statuses if s["ok"])
+            if not fresh:
+                log.error("Ни одна лента не ответила — лента не изменена")
+                return {"ok": False, "sources_ok": 0, "sources_total": len(statuses)}
+            items = await asyncio.to_thread(merge_pool, fresh, db.all_items())
+            await enrich_images(client, top_candidates(items, config.PER_TOPIC_LIMIT + 3))
+        db.replace_pool(items)
         stats = {
-            "ok": True,
-            "items": len(selection),
-            "candidates": len(hot) + len(rss),
-            "errors": errors,
+            "ok": True, "items": len(items), "sources_ok": ok, "sources_total": len(statuses),
             "seconds": round(time.time() - started, 1),
         }
         log.info("Лента обновлена: %s", stats)

@@ -1,4 +1,4 @@
-"""SQLite-хранилище: один файл news.db, одна таблица news."""
+"""SQLite-хранилище: один файл news.db, одна таблица articles (пул новостей за окно)."""
 import json
 import sqlite3
 import time
@@ -8,34 +8,40 @@ from pathlib import Path
 from . import config
 
 SCHEMA = """
-CREATE TABLE IF NOT EXISTS news (
+CREATE TABLE IF NOT EXISTS articles (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    external_id     TEXT UNIQUE NOT NULL,   -- reddit:abc123 / hn:123 / rss:<url>
-    category        TEXT NOT NULL,
+    external_id     TEXT UNIQUE NOT NULL,   -- канонический URL статьи
+    topics          TEXT NOT NULL,          -- ",ai,hardware," (может быть пустой: ",")
     title           TEXT NOT NULL,
-    summary         TEXT,                   -- короткое описание / selftext
-    image_url       TEXT,
-    source_url      TEXT,                   -- первоисточник
-    discussion_url  TEXT,                   -- тред Reddit/HN
-    source          TEXT,                   -- r/hardware, Hacker News, ...
+    summary         TEXT,
+    image_url       TEXT,                   -- NULL = не искали, '' = картинки нет
+    source_url      TEXT,
+    discussion_url  TEXT,                   -- тред обсуждения (HN), если есть
+    source          TEXT,
+    lang            TEXT,                   -- ru / en
     comments_count  INTEGER NOT NULL DEFAULT 0,
     score           INTEGER NOT NULL DEFAULT 0,
-    created_at      INTEGER NOT NULL,       -- unix time публикации
-    fetched_at      INTEGER NOT NULL,       -- unix time последнего обновления
-    content         TEXT,                   -- кэш очищенного текста статьи
-    tldr            TEXT                    -- кэш TL;DR (JSON-массив)
+    weight          REAL NOT NULL DEFAULT 0,
+    also            TEXT,                   -- JSON: [{"source":..., "url":...}] — кто ещё написал
+    created_at      INTEGER NOT NULL,
+    fetched_at      INTEGER NOT NULL,
+    content         TEXT,                   -- кэш очищенного текста
+    tldr            TEXT                    -- кэш TL;DR (JSON)
 );
-CREATE INDEX IF NOT EXISTS idx_news_category ON news(category, comments_count DESC);
 """
 
 FIELDS = (
-    "external_id", "category", "title", "summary", "image_url", "source_url",
-    "discussion_url", "source", "comments_count", "score", "created_at",
+    "external_id", "topics", "title", "summary", "image_url", "source_url", "discussion_url",
+    "source", "lang", "comments_count", "score", "weight", "also", "created_at",
+)
+LIST_FIELDS = (
+    "id", "topics", "title", "summary", "image_url", "source_url", "discussion_url", "source",
+    "lang", "comments_count", "score", "weight", "also", "created_at",
 )
 
 
-def _connect(path: Path | None = None) -> sqlite3.Connection:
-    path = Path(path or config.DB_PATH)
+def _connect() -> sqlite3.Connection:
+    path = Path(config.DB_PATH)
     path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(path)
     conn.row_factory = sqlite3.Row
@@ -55,70 +61,76 @@ def connection():
 def init() -> None:
     with connection() as conn:
         conn.executescript(SCHEMA)
+        conn.execute("DROP TABLE IF EXISTS news")  # таблица первой версии
 
 
-def all_rows() -> list[dict]:
+def to_item(row: dict) -> dict:
+    """Строка БД → элемент конвейера (topics/also раскрыты)."""
+    item = {f: row.get(f) for f in FIELDS}
+    item["topics"] = [t for t in (row.get("topics") or "").split(",") if t]
+    item["also"] = json.loads(row["also"]) if row.get("also") else []
+    return item
+
+
+def all_items() -> list[dict]:
     with connection() as conn:
-        return [dict(r) for r in conn.execute("SELECT * FROM news")]
+        return [to_item(dict(r)) for r in conn.execute("SELECT * FROM articles")]
 
 
-def list_news(categories: list[str] | None = None) -> list[dict]:
-    sql = (
-        "SELECT id, category, title, summary, image_url, source_url, discussion_url, "
-        "source, comments_count, score, created_at FROM news"
-    )
-    args: list = []
-    if categories:
-        sql += f" WHERE category IN ({','.join('?' * len(categories))})"
-        args = list(categories)
-    sql += " ORDER BY comments_count DESC, score DESC"
+def pool(since: int) -> list[dict]:
     with connection() as conn:
-        return [dict(r) for r in conn.execute(sql, args)]
+        rows = conn.execute(
+            f"SELECT {','.join(LIST_FIELDS)} FROM articles WHERE created_at >= ?", (since,)
+        )
+        out = []
+        for r in rows:
+            d = dict(r)
+            d["topics"] = [t for t in d["topics"].split(",") if t]
+            d["also"] = json.loads(d["also"]) if d["also"] else []
+            out.append(d)
+        return out
 
 
-def get(news_id: int) -> dict | None:
+def get(article_id: int) -> dict | None:
     with connection() as conn:
-        row = conn.execute("SELECT * FROM news WHERE id = ?", (news_id,)).fetchone()
+        row = conn.execute("SELECT * FROM articles WHERE id = ?", (article_id,)).fetchone()
         return dict(row) if row else None
 
 
 def last_fetched_at() -> int | None:
     with connection() as conn:
-        row = conn.execute("SELECT MAX(fetched_at) FROM news").fetchone()
+        row = conn.execute("SELECT MAX(fetched_at) FROM articles").fetchone()
         return row[0] if row and row[0] else None
 
 
-def replace_selection(items: list[dict]) -> None:
-    """Сохраняет текущую выборку: обновляет/вставляет items, удаляет всё остальное.
-
-    Кэш текста статьи (content/tldr) у уже существующих записей сохраняется.
-    """
+def replace_pool(items: list[dict]) -> None:
+    """Сохраняет пул: upsert всех items, удаление остального. Кэш текста сохраняется."""
     now = int(time.time())
     with connection() as conn:
-        keep = []
+        conn.execute("CREATE TEMP TABLE keep (external_id TEXT PRIMARY KEY)")
         for it in items:
-            values = [it.get(f) for f in FIELDS]
+            row = dict(it)
+            row["topics"] = "," + ",".join(it.get("topics") or []) + ","
+            row["also"] = json.dumps(it.get("also") or [], ensure_ascii=False)
+            values = [row.get(f) for f in FIELDS]
             conn.execute(
-                f"""INSERT INTO news ({','.join(FIELDS)}, fetched_at)
+                f"""INSERT INTO articles ({','.join(FIELDS)}, fetched_at)
                     VALUES ({','.join('?' * len(FIELDS))}, ?)
                     ON CONFLICT(external_id) DO UPDATE SET
-                    {', '.join(f'{f}=excluded.{f}' for f in FIELDS[1:])},
+                    {', '.join(f'{f}=excluded.{f}' for f in FIELDS[1:] if f != 'image_url')},
+                    image_url=COALESCE(excluded.image_url, articles.image_url),
                     fetched_at=excluded.fetched_at""",
                 values + [now],
             )
-            keep.append(it["external_id"])
-        if keep:
-            conn.execute(
-                f"DELETE FROM news WHERE external_id NOT IN ({','.join('?' * len(keep))})",
-                keep,
-            )
-        else:
-            conn.execute("DELETE FROM news")
+            conn.execute("INSERT OR IGNORE INTO keep VALUES (?)", (it["external_id"],))
+        conn.execute("DELETE FROM articles WHERE external_id NOT IN (SELECT external_id FROM keep)")
+        conn.execute("DROP TABLE keep")
 
 
-def save_article(news_id: int, content: str, tldr: list[str], image_url: str | None) -> None:
+def save_article(article_id: int, content: str, tldr: list[str], image_url: str | None) -> None:
     with connection() as conn:
         conn.execute(
-            "UPDATE news SET content = ?, tldr = ?, image_url = COALESCE(image_url, ?) WHERE id = ?",
-            (content, json.dumps(tldr, ensure_ascii=False), image_url, news_id),
+            "UPDATE articles SET content = ?, tldr = ?, "
+            "image_url = CASE WHEN COALESCE(image_url, '') = '' THEN ? ELSE image_url END WHERE id = ?",
+            (content, json.dumps(tldr, ensure_ascii=False), image_url, article_id),
         )
