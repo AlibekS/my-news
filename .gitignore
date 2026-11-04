@@ -6,3 +6,5 @@ data/
 *.db
 *.db-journal
 .pytest_cache/
+ux-report/
+.env

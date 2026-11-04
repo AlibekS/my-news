@@ -129,6 +129,48 @@ start.bat            запуск двойным кликом на Windows
 
 Автозапуск на Linux — `deploy/my-news.service`, Docker — `Dockerfile`.
 
+## Агент-тестировщик (UX-ревью через Claude Code)
+
+В проекте есть агент для [Claude Code](https://code.claude.com), который ведёт себя как обычный
+пользователь: открывает сайт в настоящем браузере, читает новости, жмёт кнопки, ищет, смотрит
+мобильную версию — и пишет ревью: что понравилось, что нет, какие баги и неудобства.
+Работает по подписке Claude Pro, API-ключ не нужен.
+
+Один раз:
+
+```bash
+irm https://claude.ai/install.ps1 | iex
+```
+(это PowerShell на Windows; на macOS/Linux — `curl -fsSL https://claude.ai/install.sh | bash`)
+```bash
+.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+```
+```bash
+.\.venv\Scripts\python.exe -m playwright install chromium
+```
+
+Проверка: запустите сайт (`py run.py`), в другом окне в папке проекта выполните `claude`
+(при первом запуске войдите своим аккаунтом Claude с подпиской) и введите:
+
+```
+/ux-review
+```
+
+Варианты: `/ux-review gamer`, `/ux-review investor`, `/ux-review morning --refresh`.
+Отчёт со скриншотами и `review.md` появится в папке `ux-report/<дата-время>/`.
+
+Как устроено:
+
+```
+tools/ux_walkthrough.py        сценарий «пользователя» (Playwright): ~23 шага, скриншоты,
+                               время, ошибки JS, вёрстка, мелкие кнопки, пустые разделы
+.claude/agents/ux-reviewer.md  агент: запускает сценарий, смотрит скриншоты, пишет ревью
+.claude/commands/ux-review.md  команда /ux-review
+```
+
+Сценарий можно запускать и без Claude — получите только автоматические замечания:
+`py tools/ux_walkthrough.py --headed` (с `--headed` видно, как он кликает).
+
 ## Тесты
 
 ```bash
