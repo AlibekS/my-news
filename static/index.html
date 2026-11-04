@@ -230,14 +230,63 @@
   .badge { height: 24px; padding: 0 9px; border-radius: 9999px; display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 700; background: var(--soft); color: var(--accent-ink); white-space: nowrap; }
   .badge.hot { background: var(--hot-bg); color: var(--hot-ink); }
 
-  /* Главная карточка секции */
-  .card.featured { grid-column: span 2; }
-  .card.featured .title { font-size: 22px; line-height: 1.25; letter-spacing: -.02em; }
-  @media (min-width: 921px) {
-    .card.featured { grid-row: span 2; }
-    .card.featured .media { aspect-ratio: auto; flex: 1 1 auto; min-height: 240px; }
+  /* Главная карточка: горизонтальная, на две колонки — картинка слева, текст справа.
+     Высота как у соседних карточек, без пустых «простыней». */
+  .card.featured { grid-column: span 2; flex-direction: row; }
+  .card.featured .media { aspect-ratio: auto; width: 48%; align-self: stretch; min-height: 230px; }
+  .card.featured .body { padding: 20px 22px; gap: 10px; }
+  .card.featured .title { font-size: 21px; line-height: 1.25; letter-spacing: -.02em; -webkit-line-clamp: 4; }
+  .card.featured .lead { -webkit-line-clamp: 4; }
+  @media (max-width: 600px) {
+    .card.featured { grid-column: auto; flex-direction: column; }
+    .card.featured .media { width: 100%; aspect-ratio: 16 / 9; min-height: 0; }
+    .card.featured .body { padding: 14px 16px 16px; }
+    .card.featured .title { font-size: 18px; }
   }
-  @media (max-width: 600px) { .card.featured { grid-column: auto; } .card.featured .title { font-size: 19px; } }
+
+  /* «Главное сейчас» */
+  .section.highlights .section-icon { background: var(--grad); }
+  .section-sub { color: var(--muted); font-size: 13px; font-weight: 600; margin: -8px 0 14px 50px; }
+
+  /* Кнопка «Показать ещё» */
+  .more-row { display: flex; justify-content: center; margin-top: 14px; }
+  .more-btn { height: 40px; padding: 0 18px; border-radius: 9999px; display: inline-flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 700;
+    color: var(--ink-2); background: var(--surface); border: 1px solid var(--line); transition: box-shadow .2s, color .2s, transform .15s; }
+  .more-btn:hover { box-shadow: var(--shadow); color: var(--ink); }
+  .more-btn i { font-style: normal; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: color-mix(in srgb, var(--c) 18%, var(--card)); color: var(--c); font-size: 12px; font-weight: 800; }
+  .card.appear { animation: appear .35s cubic-bezier(.2,.8,.2,1) both; }
+  @keyframes appear { from { opacity: 0; transform: translateY(10px); } }
+
+  /* Закладки-переходы к темам: слева на широком экране, полоской под шапкой — на узком */
+  .rail { position: fixed; z-index: 25; left: max(10px, calc((100vw - 1160px) / 2 - 62px)); top: 50%; transform: translate(-8px, -50%);
+    display: flex; flex-direction: column; gap: 4px; padding: 7px; border-radius: 22px;
+    background: var(--header); border: 1px solid var(--line); box-shadow: var(--shadow);
+    backdrop-filter: saturate(1.4) blur(18px); -webkit-backdrop-filter: saturate(1.4) blur(18px);
+    opacity: 0; pointer-events: none; transition: opacity .25s, transform .3s cubic-bezier(.3,.9,.3,1); }
+  .rail.show { opacity: 1; pointer-events: auto; transform: translate(0, -50%); }
+  .rail a { position: relative; width: 40px; height: 40px; border-radius: 14px; display: grid; place-items: center; font-size: 19px; transition: background .2s, transform .15s; }
+  .rail a:hover { background: color-mix(in srgb, var(--c) 18%, transparent); transform: scale(1.06); }
+  .rail a.on { background: color-mix(in srgb, var(--c) 24%, transparent); }
+  .rail a.on::before { content: ""; position: absolute; left: -7px; top: 10px; bottom: 10px; width: 3px; border-radius: 3px; background: var(--c); }
+  .rail .tip { position: absolute; left: 50px; white-space: nowrap; padding: 6px 10px; border-radius: 10px; font-size: 13px; font-weight: 700;
+    background: var(--card); color: var(--ink); box-shadow: var(--shadow); border: 1px solid var(--line);
+    opacity: 0; transform: translateX(-4px); pointer-events: none; transition: opacity .15s, transform .15s; }
+  .rail a:hover .tip { opacity: 1; transform: none; }
+  .rail .n { position: absolute; top: 2px; right: 2px; min-width: 15px; height: 15px; padding: 0 3px; border-radius: 9999px; font-size: 9.5px; font-weight: 800;
+    display: grid; place-items: center; background: var(--c); color: #fff; }
+  @media (max-width: 1319px) {
+    .rail { left: 0; right: 0; top: 64px; transform: translateY(-6px); flex-direction: row; gap: 6px; padding: 7px 16px; border-radius: 0;
+      border-width: 0 0 1px; overflow-x: auto; scrollbar-width: none; box-shadow: 0 6px 18px rgba(11,37,69,.06); }
+    .rail.show { transform: none; }
+    .rail::-webkit-scrollbar { display: none; }
+    .rail a { flex: none; width: auto; height: 32px; padding: 0 12px 0 8px; border-radius: 9999px; display: inline-flex; align-items: center; gap: 6px; font-size: 15px; }
+    .rail a:hover { transform: none; }
+    .rail a.on { background: var(--c); }
+    .rail a.on .tip { color: #fff; }
+    .rail a.on::before, .rail .n { display: none; }
+    .rail .tip { position: static; opacity: 1; transform: none; background: none; border: 0; box-shadow: none; padding: 0; font-size: 13px; color: var(--ink-2); }
+    .section { scroll-margin-top: 130px; }
+  }
 
   .empty { background: color-mix(in srgb, var(--card) 70%, transparent); border: 1.5px dashed var(--line); border-radius: 20px; padding: 26px; text-align: center; color: var(--ink-2); font-weight: 500; }
   .empty-big { padding: 60px 20px; margin-top: 20px; }
@@ -416,6 +465,8 @@
   </footer>
 </div>
 
+<nav class="rail" id="rail" aria-label="Перейти к теме"></nav>
+
 <button class="to-top" id="toTop" aria-label="Наверх" title="Наверх">
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>
 </button>
@@ -556,11 +607,14 @@
 
   // ---------------- плавная прокрутка наверх ----------------
   let scrollAnim = null;
-  function scrollToTop() {
+  function scrollToTop() { scrollToY(0); }
+  function scrollToY(target) {
     const start = window.scrollY;
-    if (start <= 0) return;
+    target = Math.max(0, Math.min(target, document.documentElement.scrollHeight - innerHeight));
+    const dist = target - start;
+    if (Math.abs(dist) < 2) return;
     cancelAnimationFrame(scrollAnim);
-    const duration = Math.min(650, 280 + start / 10);   // быстро, но без рывка
+    const duration = Math.min(650, 280 + Math.abs(dist) / 10);   // быстро, но без рывка
     const t0 = performance.now();
     const ease = (p) => (p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2); // easeInOutCubic
     const stop = () => cancelAnimationFrame(scrollAnim);
@@ -568,7 +622,7 @@
     window.addEventListener("touchstart", stop, { once: true, passive: true });
     (function step(now) {
       const p = Math.min(1, (now - t0) / duration);
-      window.scrollTo(0, Math.round(start * (1 - ease(p))));
+      window.scrollTo(0, Math.round(start + dist * ease(p)));
       if (p < 1) scrollAnim = requestAnimationFrame(step);
     })(t0);
   }
@@ -577,7 +631,11 @@
   window.addEventListener("scroll", () => {
     if (ticking) return;
     ticking = true;
-    requestAnimationFrame(() => { toTop.classList.toggle("show", window.scrollY > 500); ticking = false; });
+    requestAnimationFrame(() => {
+      toTop.classList.toggle("show", window.scrollY > 500);
+      $("rail").classList.toggle("show", window.scrollY > 380 && $("rail").childElementCount > 1);
+      ticking = false;
+    });
   }, { passive: true });
   toTop.addEventListener("click", scrollToTop);
 
@@ -713,37 +771,140 @@
 
   function visibleTopics() { return myTopics.filter((id) => !hidden.has(id) && topicInfo(id)); }
 
+  const SHOW_FIRST = 3;            // сколько новостей темы видно сразу
+  const expanded = new Set();     // раскрытые темы (до перезагрузки страницы)
+
+  function emptyText(info) {
+    if (info.custom) return "По этим ключевым словам за последние сутки ничего не нашлось. Попробуйте добавить синонимы.";
+    return region === "kz" ? "В казахстанских источниках по этой теме за сутки пока ничего." : "За последние сутки в этой теме пока тихо.";
+  }
+  const isRich = (it) => it && it.image_url && (it.summary || "").length > 60;
+
   function renderFeed(data) {
     const feed = $("feed");
     if (!visibleTopics().length) {
+      renderRail([]);
       return feed.replaceChildren(el("div", { class: "empty empty-big" }, el("div", { class: "emoji" }, "🌊"),
         "Все темы выключены. Нажмите на тему вверху или добавьте новую через «+»."));
     }
     const total = data.sections.reduce((s, x) => s + x.items.length, 0);
     if (!total && !data.updated_at) {
+      renderRail([]);
       const busy = data.refreshing || refreshing;
       return feed.replaceChildren(el("div", { class: "empty empty-big" }, el("div", { class: "emoji" }, "🫧"),
         busy ? "Собираем новости из источников — это займёт около минуты…" : "Лента пока пуста.",
         busy ? null : el("div", { style: "margin-top:14px" }, el("button", { class: "chip-btn primary", onclick: doRefresh }, "Собрать новости"))));
     }
-    feed.replaceChildren(...data.sections.map((sec) => {
+
+    // «Главное сейчас»: по одной самой горячей новости из каждой темы — чтобы сразу
+    // видеть все темы, а не листать до седьмой.
+    const sections = data.sections.filter((sec) => topicInfo(sec.topic));
+    let highlights = [];
+    if (sections.filter((s) => s.items.length).length >= 2) {
+      highlights = sections.filter((s) => s.items.length).map((s) => ({ item: s.items[0], topic: s.topic }))
+        .sort((a, b) => (b.item.hot || 0) - (a.item.hot || 0)).slice(0, 6);
+    }
+    const shown = new Set(highlights.map((h) => h.item.id));
+
+    const blocks = [];
+    const railItems = [];
+    if (highlights.length) {
+      // Если у самой горячей есть картинка и текст — делаем её широкой (она занимает 2 места).
+      const featured = isRich(highlights[0].item);
+      const list = featured ? highlights.slice(0, 5) : highlights;
+      for (const h of highlights.slice(list.length)) shown.delete(h.item.id);
+      blocks.push(el("section", { class: "section highlights", id: "sec-top" },
+        el("div", { class: "section-head" }, el("span", { class: "section-icon" }, "⭐"), el("h2", {}, "Главное сейчас")),
+        el("p", { class: "section-sub" }, "самое обсуждаемое из каждой темы"),
+        el("div", { class: "grid" }, ...list.map((h, i) => card(h.item, topicInfo(h.topic), featured && i === 0)))));
+      railItems.push({ id: "sec-top", emoji: "⭐", name: "Главное", color: "#0EA5E9" });
+    }
+
+    for (const sec of sections) {
       const info = topicInfo(sec.topic);
-      if (!info) return null;
+      const items = sec.items.filter((it) => !shown.has(it.id));
+      const id = "sec-" + sec.topic;
       const n = sec.items.length;
+      railItems.push({ id, emoji: info.emoji, name: info.name, color: info.color, n });
       const head = el("div", { class: "section-head", style: `--c:${info.color}` },
         el("span", { class: "section-icon" }, info.emoji), el("h2", {}, info.name),
         el("span", { class: "count" }, n ? `${n} ${plural(n, ["новость", "новости", "новостей"])}` : ""));
-      // Главной делаем первую новость с картинкой (если она в топ-3), иначе — без главной.
-      let fi = -1;
-      if (n >= 5) { fi = sec.items.slice(0, 3).findIndex((it) => it.image_url); if (fi < 0) fi = 0; }
-      const items = fi > 0 ? [sec.items[fi], ...sec.items.filter((_, i) => i !== fi)] : sec.items;
-      const body = n
-        ? el("div", { class: "grid" }, ...items.map((it, i) => card(it, info, fi >= 0 && i === 0)))
-        : el("div", { class: "empty" }, info.custom
-          ? "По этим ключевым словам за последние сутки ничего не нашлось. Попробуйте добавить синонимы."
-          : region === "kz" ? "В казахстанских источниках по этой теме за сутки пока ничего." : "За последние сутки в этой теме пока тихо.");
-      return el("section", { class: "section" }, head, body);
-    }).filter(Boolean));
+      let body;
+      if (!n) body = el("div", { class: "empty" }, emptyText(info));
+      else if (!items.length) body = el("div", { class: "empty" }, "Главная новость темы — в блоке «Главное сейчас» выше.");
+      else {
+        const grid = el("div", { class: "grid" });
+        const open = expanded.has(sec.topic);
+        const first = open ? items : items.slice(0, SHOW_FIRST);
+        grid.append(...first.map((it) => card(it, info, false)));
+        body = [grid];
+        const rest = items.length - SHOW_FIRST;
+        if (rest > 0) {
+          const btn = el("button", { class: "more-btn", style: `--c:${info.color}` });
+          const setLabel = (o) => btn.replaceChildren(el("i", {}, o ? "↑" : `+${rest}`),
+            o ? "Свернуть" : `Ещё ${rest} ${plural(rest, ["новость", "новости", "новостей"])}`);
+          setLabel(open);
+          btn.addEventListener("click", () => {
+            if (expanded.has(sec.topic)) {
+              expanded.delete(sec.topic);
+              [...grid.children].slice(SHOW_FIRST).forEach((c) => c.remove());
+              setLabel(false);
+              const top = document.getElementById(id).getBoundingClientRect().top;
+              if (top < 0) scrollToY(window.scrollY + top - 90);
+            } else {
+              expanded.add(sec.topic);
+              grid.append(...items.slice(SHOW_FIRST).map((it) => { const c = card(it, info, false); c.classList.add("appear"); return c; }));
+              setLabel(true);
+            }
+          });
+          body.push(el("div", { class: "more-row" }, btn));
+        }
+      }
+      blocks.push(el("section", { class: "section", id }, head, ...[].concat(body)));
+    }
+    feed.replaceChildren(...blocks);
+    renderRail(railItems);
+  }
+
+  // ---------------- закладки слева ----------------
+  let spy = null, spyLockUntil = 0;
+  function setRailActive(id) {
+    const rail = $("rail");
+    rail.querySelectorAll("a").forEach((a) => a.classList.toggle("on", a.dataset.target === id));
+    const on = rail.querySelector("a.on");
+    if (on && rail.scrollWidth > rail.clientWidth) rail.scrollTo({ left: on.offsetLeft - rail.clientWidth / 2 + on.offsetWidth / 2, behavior: "smooth" });
+  }
+  // Внизу страницы последние темы не могут доехать до верха — подсвечиваем последнюю.
+  window.addEventListener("scroll", () => {
+    if (performance.now() < spyLockUntil) return;
+    if (innerHeight + scrollY >= document.documentElement.scrollHeight - 4) {
+      const last = [...document.querySelectorAll("#feed .section")].pop();
+      if (last) setRailActive(last.id);
+    }
+  }, { passive: true });
+  function renderRail(items) {
+    const rail = $("rail");
+    rail.replaceChildren(...items.map((r) => {
+      const a = el("a", { href: "#" + r.id, style: `--c:${r.color}`, "aria-label": r.name, "data-target": r.id },
+        r.emoji, el("span", { class: "tip" }, r.name), r.n ? el("span", { class: "n" }, String(r.n)) : null);
+      a.addEventListener("click", (e) => {
+        e.preventDefault();
+        const sec = document.getElementById(r.id);
+        if (!sec) return;
+        const offset = parseFloat(getComputedStyle(sec).scrollMarginTop) || 80;
+        setRailActive(r.id);
+        spyLockUntil = performance.now() + 900;
+        scrollToY(window.scrollY + sec.getBoundingClientRect().top - offset);
+      });
+      return a;
+    }));
+    rail.classList.toggle("show", window.scrollY > 380 && items.length > 1);
+    if (spy) spy.disconnect();
+    spy = new IntersectionObserver((entries) => {
+      if (performance.now() < spyLockUntil) return;
+      for (const e of entries) if (e.isIntersecting) setRailActive(e.target.id);
+    }, { rootMargin: "-35% 0px -60% 0px" });
+    document.querySelectorAll("#feed .section").forEach((sec) => spy.observe(sec));
   }
 
   function updateStatus(data) {

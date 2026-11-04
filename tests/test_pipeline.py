@@ -36,6 +36,22 @@ def test_classify_no_false_positives():
     assert collector.classify("На линии метро открыли новые станции") == []
 
 
+def test_primary_topic_by_match_strength():
+    t = collector.classify("«Битва моторов» собрала миллиард рублей в российском прокате", "",
+                           {"topic": "games", "mode": "fallback"})
+    assert t[0] == "movies"
+    t = collector.classify("Обычный смартфон смог переключиться с наземной вышки на спутник", "",
+                           {"topic": "hardware", "mode": "bound"})
+    # «смартфон» и «спутник» весят одинаково; главное — тема ленты («Железо») уже не первая
+    assert t[0] in ("gadgets", "space") and t[-1] == "hardware"
+
+
+def test_sections_use_best_topic_not_page_order():
+    pool = [dict(item("https://a.ru/1", "Фильм собрал рекорд", topics=["movies", "economy"]), id=1)]
+    secs = collector.build_sections(pool, ["economy", "movies"], [], None)
+    assert {s["topic"]: [i["id"] for i in s["items"]] for s in secs} == {"economy": [], "movies": [1]}
+
+
 def test_feed_modes():
     bound = {"topic": "games", "mode": "bound"}
     fallback = {"topic": "games", "mode": "fallback"}

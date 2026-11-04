@@ -68,19 +68,27 @@ MATCHERS = {k: compile_matcher(t["keywords"], t.get("acronyms")) for k, t in TOP
 
 
 def classify(title: str, summary: str = "", feed: dict | None = None) -> list[str]:
-    """Темы новости: совпадение в заголовке, или ≥2 совпадения в начале описания."""
+    """Темы новости, от самой подходящей к менее подходящей.
+
+    Тема подходит, если её ключевое слово есть в заголовке, или ≥2 совпадения в начале
+    описания. Порядок — по силе совпадения (заголовок весит вдвое больше описания);
+    тема «своей» ленты получает небольшой бонус, но не перебивает явное совпадение:
+    новость про смартфон из ленты «Железо» окажется в первую очередь в «Гаджетах».
+    """
     lead = (summary or "")[:400]
-    topics = []
+    scores: dict[str, float] = {}
     for key, pats in MATCHERS.items():
-        if count_hits(pats, title) >= 1 or count_hits(pats, lead) >= 2:
-            topics.append(key)
+        th, lh = count_hits(pats, title), count_hits(pats, lead)
+        if th >= 1 or lh >= 2:
+            scores[key] = 2 * th + 0.5 * lh
     if feed and feed.get("topic"):
-        mode = feed.get("mode", "bound")
-        if mode == "bound" and feed["topic"] not in topics:
-            topics.insert(0, feed["topic"])
-        elif mode == "fallback" and not topics:
-            topics = [feed["topic"]]
-    return topics
+        t, mode = feed["topic"], feed.get("mode", "bound")
+        if mode == "bound":
+            scores[t] = scores.get(t, 0) + 1.5
+        elif mode == "fallback" and not scores:
+            scores[t] = 1
+    order = list(MATCHERS)
+    return sorted(scores, key=lambda k: (-scores[k], order.index(k)))
 
 
 # --------------------------------------------------------------------------- #
@@ -407,40 +415,35 @@ def custom_matcher(keywords: str) -> list[re.Pattern]:
 
 def build_sections(pool: list[dict], topic_ids: list[str], custom: list[dict], region: str | None,
                    limit: int | None = None) -> list[dict]:
-    """Разбивает пул на секции по темам пользователя; новость не повторяется."""
+    """Раскладывает пул по темам пользователя; каждая новость показывается один раз.
+
+    Новость попадает в свою самую подходящую тему из выбранных (а не в первую по
+    порядку на странице). Свои темы пользователя имеют приоритет: если вы завели
+    тему «Apple», новости про iPhone окажутся в ней, а не в «Гаджетах».
+    """
     limit = limit or config.PER_TOPIC_LIMIT
     now = time.time()
     if region in REGIONS:
         pool = [p for p in pool if p.get("region") == region]
         if region == "kz":  # казахстанские СМИ — только материалы на русском
             pool = [p for p in pool if p.get("lang") == "ru"]
-    ranked = sorted(pool, key=lambda p: hotness(p, now), reverse=True)
-    used: set[int] = set()
-    custom_by_id = {str(c.get("id")): c for c in custom}
-    sections = []
-    for tid in topic_ids:
-        if tid in TOPICS:
-            def match(p, tid=tid):
-                return tid in p["topics"]
-        elif tid in custom_by_id:
-            pats = custom_matcher(custom_by_id[tid].get("keywords", ""))
-            if not pats:
-                sections.append({"topic": tid, "items": []})
-                continue
+    for p in pool:
+        p["hot"] = round(hotness(p, now), 2)
+    ranked = sorted(pool, key=lambda p: p["hot"], reverse=True)
 
-            def match(p, pats=pats):
-                return count_hits(pats, p["title"] + " " + (p.get("summary") or "")[:500]) > 0
-        else:
-            continue
-        chosen = []
-        for p in ranked:
-            if p["id"] not in used and match(p):
-                chosen.append(p)
-                if len(chosen) >= limit:
-                    break
-        used.update(p["id"] for p in chosen)
-        sections.append({"topic": tid, "items": chosen})
-    return sections
+    custom_by_id = {str(c.get("id")): c for c in custom}
+    custom_pats = {tid: custom_matcher(custom_by_id[tid].get("keywords", ""))
+                   for tid in topic_ids if tid in custom_by_id}
+    buckets: dict[str, list] = {tid: [] for tid in topic_ids if tid in TOPICS or tid in custom_pats}
+
+    for p in ranked:
+        text = p["title"] + " " + (p.get("summary") or "")[:500]
+        target = next((tid for tid, pats in custom_pats.items() if pats and count_hits(pats, text) > 0), None)
+        if target is None:
+            target = next((t for t in p["topics"] if t in buckets and t in TOPICS), None)
+        if target is not None and len(buckets[target]) < limit:
+            buckets[target].append(p)
+    return [{"topic": tid, "items": buckets[tid]} for tid in topic_ids if tid in buckets]
 
 
 # --------------------------------------------------------------------------- #
