@@ -368,8 +368,6 @@
     background: var(--card); color: var(--ink); box-shadow: var(--shadow); border: 1px solid var(--line);
     opacity: 0; transform: translateX(-4px); pointer-events: none; transition: opacity .15s, transform .15s; }
   .rail a:hover .tip { opacity: 1; transform: none; }
-  .rail .n { position: absolute; top: 2px; right: 2px; min-width: 15px; height: 15px; padding: 0 3px; border-radius: 9999px; font-size: 9.5px; font-weight: 800;
-    display: grid; place-items: center; background: var(--c); color: #fff; }
   @media (max-width: 1319px) {
     .rail { left: 0; right: 0; top: 64px; transform: translateY(-6px); flex-direction: row; gap: 6px; padding: 7px 16px; border-radius: 0;
       border-width: 0 0 1px; overflow-x: auto; scrollbar-width: none; box-shadow: 0 6px 18px rgba(11,37,69,.06); }
@@ -379,7 +377,7 @@
     .rail a:hover { transform: none; }
     .rail a.on { background: var(--c); }
     .rail a.on .tip { color: #fff; }
-    .rail a.on::before, .rail .n { display: none; }
+    .rail a.on::before { display: none; }
     .rail .tip { position: static; opacity: 1; transform: none; background: none; border: 0; box-shadow: none; padding: 0; font-size: 13px; color: var(--ink-2); }
     .section { scroll-margin-top: 130px; }
   }
@@ -1277,7 +1275,7 @@
       const items = sec.items.filter((it) => !shown.has(it.id));
       const id = "sec-" + sec.topic;
       const n = sec.items.length;
-      railItems.push({ id, emoji: info.emoji, name: info.name, color: info.color, n });
+      railItems.push({ id, emoji: info.emoji, name: info.name, color: info.color });
       const head = el("div", { class: "section-head", style: `--c:${info.color}` },
         el("span", { class: "section-icon" }, info.emoji), el("h2", {}, info.name),
         el("span", { class: "count" }, n ? `${n} ${plural(n, ["новость", "новости", "новостей"])}` : ""));
@@ -1338,7 +1336,7 @@
     const rail = $("rail");
     rail.replaceChildren(...items.map((r) => {
       const a = el("a", { href: "#" + r.id, style: `--c:${r.color}`, "aria-label": r.name, "data-target": r.id },
-        r.emoji, el("span", { class: "tip" }, r.name), r.n ? el("span", { class: "n" }, String(r.n)) : null);
+        r.emoji, el("span", { class: "tip" }, r.name));
       a.addEventListener("click", (e) => {
         e.preventDefault();
         const sec = document.getElementById(r.id);
