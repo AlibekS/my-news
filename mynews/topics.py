@@ -71,6 +71,11 @@ TOPICS: dict[str, dict] = {
             feed("PlayGround", "https://www.playground.ru/rss/news.xml"),
             feed("Игромания", ["https://www.igromania.ru/rss/news.xml", "https://www.igromania.ru/"]),
             feed("3DNews · Игры", "https://3dnews.ru/games/rss/"),
+            feed("Shazoo", ["https://shazoo.ru/feed/rss", "https://shazoo.ru/"]),
+            feed("VGTimes", ["https://vgtimes.ru/rss/", "https://vgtimes.ru/"]),
+            feed("GameMAG", ["https://gamemag.ru/rss/feed", "https://gamemag.ru/"]),
+            feed("Cybersport.ru", ["https://www.cybersport.ru/rss/materials", "https://www.cybersport.ru/"]),
+            feed("iXBT Games", ["https://www.ixbt.com/export/games.rss", "https://ixbt.games/"]),
             feed("Rock Paper Shotgun", "https://www.rockpapershotgun.com/feed", region="en"),
             feed("PC Gamer", "https://www.pcgamer.com/rss/", region="en"),
             feed("Eurogamer", "https://www.eurogamer.net/feed", region="en"),
@@ -94,8 +99,11 @@ TOPICS: dict[str, dict] = {
             feed("3DNews · Железо", "https://3dnews.ru/hardware-news/rss/"),
             feed("Хабр · Железо", "https://habr.com/ru/rss/hubs/hardware/articles/?fl=ru"),
             feed("Overclockers", ["https://overclockers.ru/rss/all.rss", "https://overclockers.ru/"]),
+            feed("Ferra.ru", ["https://www.ferra.ru/exports/rss.xml", "https://www.ferra.ru/"]),
+            feed("iXBT Live", ["https://www.ixbt.com/live/rss/", "https://www.ixbt.com/live/"]),
             feed("Tom's Hardware", "https://www.tomshardware.com/feeds/all", region="en"),
-            feed("VideoCardz", "https://videocardz.com/feed", region="en"),
+            feed("Wccftech", "https://wccftech.com/feed/", region="en"),
+            feed("TechPowerUp", "https://www.techpowerup.com/rss/news", region="en"),
         ],
     },
     "economy": {
@@ -164,8 +172,8 @@ TOPICS: dict[str, dict] = {
         ],
         "acronyms": [],
         "feeds": [
-            feed("Канобу", ["https://kanobu.ru/rss/", "https://kanobu.ru/"]),
             feed("Film.ru", ["https://www.film.ru/rss.xml", "https://www.film.ru/"]),
+            feed("Кинопоиск", ["https://www.kinopoisk.ru/media/rss/", "https://www.kinopoisk.ru/media/"]),
             feed("Variety", "https://variety.com/feed/", region="en"),
         ],
     },
@@ -196,6 +204,8 @@ TOPICS: dict[str, dict] = {
         "acronyms": [],
         "feeds": [
             feed("4PDA", "https://4pda.to/feed/"),
+            feed("Wylsacom", ["https://wylsa.com/feed/", "https://wylsa.com/"]),
+            feed("Rozetked", ["https://rozetked.me/rss", "https://rozetked.me/"]),
             feed("GSMArena", "https://www.gsmarena.com/rss-news-reviews.php3", region="en"),
         ],
     },
@@ -265,9 +275,10 @@ GENERAL_FEEDS = [
     feed("РБК", "https://rssexport.rbc.ru/rbcnews/news/30/full.rss", mode="classify"),
     feed("Интерфакс", "https://www.interfax.ru/rss.asp", mode="classify"),
     feed("Коммерсантъ", "https://www.kommersant.ru/RSS/news.xml", mode="classify"),
+    feed("Хайтек+", ["https://hightech.plus/feed.rss", "https://hightech.plus/"], mode="classify"),
+    feed("TechInsider", ["https://www.techinsider.ru/rss/", "https://www.techinsider.ru/"], mode="classify"),
     feed("Ведомости", ["https://www.vedomosti.ru/rss/news", "https://www.vedomosti.ru/"], mode="classify"),
     feed("BBC News Русская служба", "https://feeds.bbci.co.uk/russian/rss.xml", mode="classify"),
-    feed("Медуза", "https://meduza.io/rss/all", mode="classify"),
     # Англоязычные
     feed("Ars Technica", "https://feeds.arstechnica.com/arstechnica/index", mode="classify", region="en"),
     feed("The Verge", "https://www.theverge.com/rss/index.xml", mode="classify", region="en"),
@@ -277,15 +288,14 @@ GENERAL_FEEDS = [
          mode="fallback", region="kz"),
     feed("Курсив", ["https://kz.kursiv.media/feed/", "https://kursiv.kz/feed/", "https://kz.kursiv.media/"],
          mode="fallback", region="kz"),
-    feed("ZTB.kz", ["https://ztb.kz/rss", "https://ztb.kz/feed/", "https://ztb.kz/"], mode="classify", region="kz"),
-    feed("Zakon.kz", ["https://www.zakon.kz/rss/", "https://www.zakon.kz/"], mode="classify", region="kz"),
     feed("Казинформ", ["https://www.inform.kz/ru/rss", "https://www.inform.kz/rss/ru.xml", "https://www.inform.kz/"],
          mode="classify", region="kz"),
-    feed("Forbes Kazakhstan", ["https://forbes.kz/rss", "https://forbes.kz/feed/", "https://forbes.kz/"],
-         mode="fallback", region="kz"),
     feed("Vlast.kz", ["https://vlast.kz/rss", "https://vlast.kz/feed", "https://vlast.kz/"],
          mode="fallback", region="kz"),
     feed("Orda.kz", ["https://orda.kz/feed/", "https://orda.kz/"], mode="classify", region="kz"),
+    feed("Inbusiness.kz", ["https://inbusiness.kz/ru/rss", "https://inbusiness.kz/ru"], mode="fallback", region="kz"),
+    feed("Liter.kz", ["https://liter.kz/feed/", "https://liter.kz/"], mode="classify", region="kz"),
+    feed("Exclusive.kz", ["https://exclusive.kz/feed/", "https://exclusive.kz/"], mode="classify", region="kz"),
     feed("Informburo", ["https://informburo.kz/rss", "https://informburo.kz/"], mode="classify", region="kz"),
     feed("Nur.kz", ["https://www.nur.kz/rss/all.rss", "https://www.nur.kz/"], mode="classify", region="kz"),
     feed("Profit.kz", ["https://profit.kz/rss/", "https://profit.kz/"], mode="classify", region="kz"),
@@ -294,7 +304,7 @@ GENERAL_FEEDS = [
 ]
 
 # Тема по умолчанию для общих лент в режиме fallback.
-FALLBACK_TOPIC = {"Kapital.kz": "economy", "Курсив": "economy", "Forbes Kazakhstan": "economy",
+FALLBACK_TOPIC = {"Kapital.kz": "economy", "Курсив": "economy", "Inbusiness.kz": "economy",
                   "Vlast.kz": "politics"}
 
 DEFAULT_TOPICS = [k for k, t in TOPICS.items() if t.get("default")]

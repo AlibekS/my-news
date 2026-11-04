@@ -172,8 +172,15 @@
 
   /* ---------------- Темы ---------------- */
   .topics-bar { padding: 12px 0 0; margin-top: 14px; }
-  .pills { display: flex; gap: 10px; overflow-x: auto; scrollbar-width: none; padding: 8px 20px 26px; margin: -8px -20px -18px; }
-  .pills::-webkit-scrollbar { display: none; }
+  /* На компьютере темы переносятся на новую строку — все видны, кнопка настройки всегда на месте.
+     На телефоне — одна строка с прокруткой пальцем, кнопка настройки стоит первой. */
+  .pills { display: flex; flex-wrap: wrap; gap: 10px; }
+  @media (max-width: 600px) {
+    .pills { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding: 8px 16px 26px; margin: -8px -16px -18px;
+      -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 40px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 40px), transparent); }
+    .pills::-webkit-scrollbar { display: none; }
+    .pill.add { order: -1; }
+  }
   .pill {
     flex: none; height: 42px; padding: 0 16px 0 7px; border-radius: 9999px; display: inline-flex; align-items: center; gap: 8px;
     background: var(--surface); border: 1px solid var(--line); font-weight: 700; font-size: 14.5px; color: var(--ink-2);
@@ -183,7 +190,8 @@
   .pill .emo { width: 29px; height: 29px; border-radius: 50%; display: grid; place-items: center; font-size: 15px; background: var(--soft); }
   .pill.active { color: #fff; border-color: transparent; background: var(--c); box-shadow: 0 6px 18px color-mix(in srgb, var(--c) 40%, transparent); }
   .pill.active .emo { background: rgba(255,255,255,.25); }
-  .pill.add { padding: 0; width: 42px; justify-content: center; color: var(--accent-ink); border: 1.5px dashed color-mix(in srgb, var(--accent-ink) 45%, transparent); background: transparent; font-size: 24px; font-weight: 500; }
+  .pill.add { padding: 0 16px 0 12px; gap: 6px; justify-content: center; color: var(--accent-ink); border: 1.5px dashed color-mix(in srgb, var(--accent-ink) 45%, transparent); background: transparent; }
+  .pill.add b { font-size: 20px; font-weight: 600; line-height: 1; }
   .pill.add:hover { background: var(--surface); border-style: solid; }
 
   /* ---------------- Лента ---------------- */
@@ -863,7 +871,7 @@
         onclick: () => { on ? hidden.add(id) : hidden.delete(id); save(); renderPills(); reload(); },
       }, el("span", { class: "emo" }, t.emoji), t.name);
     });
-    pills.push(el("button", { class: "pill add", title: "Добавить тему", "aria-label": "Добавить тему", onclick: openTopics }, "+"));
+    pills.push(el("button", { class: "pill add", title: "Добавить, убрать или создать свою тему", onclick: openTopics }, el("b", {}, "+"), "Темы"));
     $("pills").replaceChildren(...pills.filter(Boolean));
   }
 
