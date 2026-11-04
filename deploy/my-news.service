@@ -1,0 +1,17 @@
+# Пользовательский сервис systemd.
+# Установка:
+#   mkdir -p ~/.config/systemd/user && cp deploy/my-news.service ~/.config/systemd/user/
+#   # поправьте WorkingDirectory/ExecStart под свой путь
+#   systemctl --user daemon-reload && systemctl --user enable --now my-news
+[Unit]
+Description=My News — персональный дашборд новостей (127.0.0.1:8000)
+After=network-online.target
+
+[Service]
+WorkingDirectory=%h/my-news
+ExecStart=%h/my-news/.venv/bin/python run.py
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target
