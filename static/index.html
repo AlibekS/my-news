@@ -99,7 +99,10 @@
   @keyframes drift { to { transform: translate(40px, 30px) scale(1.08); } }
   @media (prefers-reduced-motion: reduce) { .blob, .w-icon { animation: none !important; } }
 
-  .wrap { max-width: 1160px; margin: 0 auto; padding: 0 20px; }
+  /* Ширина контента: до 1520px; на широких экранах оставляем место слева под закладки. */
+  :root { --wrap: 1520px; }
+  @media (min-width: 1320px) { :root { --wrap: min(1520px, calc(100vw - 170px)); } }
+  .wrap { max-width: var(--wrap); margin: 0 auto; padding: 0 20px; }
 
   /* ---------------- Шапка ---------------- */
   .header {
@@ -351,7 +354,7 @@
   @keyframes appear { from { opacity: 0; transform: translateY(10px); } }
 
   /* Закладки-переходы к темам: слева на широком экране, полоской под шапкой — на узком */
-  .rail { position: fixed; z-index: 25; left: max(10px, calc((100vw - 1160px) / 2 - 62px)); top: 50%; transform: translate(-8px, -50%);
+  .rail { position: fixed; z-index: 25; left: max(10px, calc((100vw - var(--wrap)) / 2 - 52px)); top: 50%; transform: translate(-8px, -50%);
     display: flex; flex-direction: column; gap: 4px; padding: 7px; border-radius: 22px;
     background: var(--header); border: 1px solid var(--line); box-shadow: var(--shadow);
     backdrop-filter: saturate(1.4) blur(18px); -webkit-backdrop-filter: saturate(1.4) blur(18px);
@@ -484,6 +487,50 @@
   .my-chip .tg:hover { background: var(--soft); }
   .my-chip .rm { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; color: var(--muted); }
   .my-chip .rm:hover { background: #FEE2E2; color: #DC2626; }
+
+  /* ---------------- Крупнее на больших экранах ---------------- */
+  @media (min-width: 1320px) {
+    .hero { grid-template-columns: minmax(0, 1fr) 420px; padding-top: 44px; }
+    .hero h1 { font-size: clamp(44px, 3.4vw, 56px); }
+    .hero p { font-size: 16.5px; }
+    .weather { padding: 24px 26px; min-height: 210px; border-radius: 28px; }
+    .w-time { font-size: 48px; }
+    .w-icon { font-size: 62px; }
+    .w-temp { font-size: 34px; }
+    .w-city, .w-bottom { font-size: 14px; }
+
+    .pill { height: 48px; font-size: 15.5px; }
+    .pill .emo { width: 32px; height: 32px; font-size: 17px; }
+    .pills.grid2 .pill { font-size: 15px; }
+    .pills { gap: 12px; }
+
+    .section { margin-top: 36px; }
+    .section-head { margin-bottom: 18px; }
+    .section-head h2 { font-size: 27px; }
+    .section-icon { width: 44px; height: 44px; font-size: 22px; border-radius: 14px; }
+    .section-sub { margin-left: 56px; font-size: 14px; }
+    .grid { gap: 24px; }
+
+    .card { border-radius: 24px; }
+    .body { padding: 18px 20px 20px; gap: 10px; }
+    .meta { font-size: 13.5px; }
+    .title { font-size: 19px; line-height: 1.32; }
+    .badge { height: 26px; font-size: 12.5px; padding: 0 10px; }
+    .tag { top: 14px; left: 14px; height: 28px; font-size: 12.5px; }
+    .save-btn { top: 12px; right: 12px; width: 38px; height: 38px; }
+    .card.featured .media { min-height: 300px; }
+    .card.featured .body { padding: 24px 26px; }
+    .card.featured .title { font-size: 26px; }
+    .card.featured .lead { font-size: 15.5px; line-height: 1.55; }
+    .ph span { font-size: 54px; }
+    .more-btn { height: 44px; font-size: 15px; padding: 0 22px; }
+
+    .modal { max-width: 760px; }
+    .r-title { font-size: 28px; }
+    .tldr li, .fulltext p { font-size: 16.5px; }
+    .t-modal { max-width: 860px; }
+    footer { font-size: 14px; }
+  }
 </style>
 </head>
 <body>
