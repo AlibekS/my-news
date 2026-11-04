@@ -11,7 +11,7 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse
 
 from . import collector, config, db, reader
-from .topics import DEFAULT_TOPICS, catalog
+from .topics import DEFAULT_TOPICS, MAX_TOPICS, REGIONS, catalog
 
 log = logging.getLogger("mynews")
 
@@ -48,14 +48,14 @@ def index():
 
 @app.get("/api/topics")
 def topics():
-    return {"topics": catalog(), "defaults": DEFAULT_TOPICS}
+    return {"topics": catalog(), "defaults": DEFAULT_TOPICS, "max": MAX_TOPICS, "regions": REGIONS}
 
 
 @app.get("/api/news")
 def news(
     topics: str = Query(",".join(DEFAULT_TOPICS), description="ai,games,hardware,c-123"),
     custom: str = Query("[]", description='JSON: [{"id":"c-123","keywords":"apple, iphone"}]'),
-    lang: str | None = Query(None, description="ru — только русскоязычные"),
+    region: str = Query("ru", description="ru / en / kz"),
 ):
     try:
         custom_list = [c for c in json.loads(custom) if isinstance(c, dict)][:20]
@@ -63,7 +63,7 @@ def news(
         custom_list = []
     topic_ids = [t for t in topics.split(",") if t][:30]
     since = int(time.time() - config.WINDOW_HOURS * 3600)
-    sections = collector.build_sections(db.pool(since), topic_ids, custom_list, lang)
+    sections = collector.build_sections(db.pool(since), topic_ids, custom_list, region)
     for s in sections:
         for item in s["items"]:
             item.pop("weight", None)
@@ -82,6 +82,43 @@ async def refresh():
 @app.get("/api/sources")
 def sources():
     return collector.load_status()
+
+
+_weather: dict = {"data": None, "ts": 0.0}
+
+
+@app.get("/api/weather")
+async def weather():
+    """Текущая погода для виджета (кэш 15 минут)."""
+    if _weather["data"] and time.time() - _weather["ts"] < 15 * 60:
+        return _weather["data"]
+    url = (
+        "https://api.open-meteo.com/v1/forecast"
+        f"?latitude={config.WEATHER_LAT}&longitude={config.WEATHER_LON}"
+        "&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m,relative_humidity_2m,is_day"
+        "&daily=temperature_2m_max,temperature_2m_min&forecast_days=1&wind_speed_unit=ms"
+        f"&timezone={config.WEATHER_TZ}"
+    )
+    try:
+        async with collector.make_client() as client:
+            r = await client.get(url, timeout=10)
+            r.raise_for_status()
+            j = r.json()
+        cur, daily = j["current"], j.get("daily", {})
+        data = {
+            "ok": True, "city": config.WEATHER_CITY,
+            "temp": cur["temperature_2m"], "feels": cur["apparent_temperature"],
+            "code": cur["weather_code"], "is_day": bool(cur["is_day"]),
+            "wind": cur["wind_speed_10m"], "humidity": cur["relative_humidity_2m"],
+            "tmax": (daily.get("temperature_2m_max") or [None])[0],
+            "tmin": (daily.get("temperature_2m_min") or [None])[0],
+            "utc_offset": j.get("utc_offset_seconds", 5 * 3600),
+        }
+        _weather.update(data=data, ts=time.time())
+        return data
+    except Exception as e:  # noqa: BLE001
+        log.warning("Погода недоступна: %s", e)
+        return _weather["data"] or {"ok": False, "city": config.WEATHER_CITY, "utc_offset": 5 * 3600}
 
 
 @app.get("/api/article/{article_id}")

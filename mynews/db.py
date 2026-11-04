@@ -18,7 +18,8 @@ CREATE TABLE IF NOT EXISTS articles (
     source_url      TEXT,
     discussion_url  TEXT,                   -- тред обсуждения (HN), если есть
     source          TEXT,
-    lang            TEXT,                   -- ru / en
+    lang            TEXT,                   -- язык заголовка: ru / en
+    region          TEXT NOT NULL DEFAULT 'ru', -- ru / en / kz (кнопки на сайте)
     comments_count  INTEGER NOT NULL DEFAULT 0,
     score           INTEGER NOT NULL DEFAULT 0,
     weight          REAL NOT NULL DEFAULT 0,
@@ -32,11 +33,11 @@ CREATE TABLE IF NOT EXISTS articles (
 
 FIELDS = (
     "external_id", "topics", "title", "summary", "image_url", "source_url", "discussion_url",
-    "source", "lang", "comments_count", "score", "weight", "also", "created_at",
+    "source", "lang", "region", "comments_count", "score", "weight", "also", "created_at",
 )
 LIST_FIELDS = (
     "id", "topics", "title", "summary", "image_url", "source_url", "discussion_url", "source",
-    "lang", "comments_count", "score", "weight", "also", "created_at",
+    "lang", "region", "comments_count", "score", "weight", "also", "created_at",
 )
 
 
@@ -60,8 +61,11 @@ def connection():
 
 def init() -> None:
     with connection() as conn:
-        conn.executescript(SCHEMA)
         conn.execute("DROP TABLE IF EXISTS news")  # таблица первой версии
+        cols = {r[1] for r in conn.execute("PRAGMA table_info(articles)")}
+        if cols and not set(FIELDS) <= cols:
+            conn.execute("DROP TABLE articles")  # схема устарела — это лишь кэш, соберём заново
+        conn.executescript(SCHEMA)
 
 
 def to_item(row: dict) -> dict:

@@ -3,27 +3,75 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="color-scheme" content="light">
 <title>Волна</title>
+<script>
+  // Тема применяется до отрисовки, чтобы не было вспышки светлого фона.
+  (function () {
+    var t = null;
+    try { t = JSON.parse(localStorage.getItem("volna.theme")); } catch (e) {}
+    if (t !== "light" && t !== "dark") t = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    document.documentElement.dataset.theme = t;
+  })();
+</script>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%2338BDF8'/><stop offset='1' stop-color='%232563EB'/></linearGradient></defs><rect width='32' height='32' rx='9' fill='url(%23g)'/><path d='M5 19c3 0 3-3 5.5-3s2.5 3 5.5 3 3-3 5.5-3 2.5 3 5.5 3' stroke='white' stroke-width='2.6' fill='none' stroke-linecap='round'/><path d='M5 13c3 0 3-3 5.5-3s2.5 3 5.5 3 3-3 5.5-3 2.5 3 5.5 3' stroke='white' stroke-opacity='.6' stroke-width='2.6' fill='none' stroke-linecap='round'/></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
+  /* ---------------- Цвета: светлая «морская» тема ---------------- */
   :root {
+    color-scheme: light;
+    --bg: #F2F8FF;
+    --bg-grad: linear-gradient(180deg, #DDF0FF 0%, #EEF7FF 340px, #F2F8FF 700px);
     --ink: #0B2545;
     --ink-2: #3E5C7E;
     --muted: #7A90AA;
-    --bg: #F2F8FF;
     --card: #FFFFFF;
-    --line: rgba(14, 80, 160, 0.09);
+    --surface: #FFFFFF;
+    --surface-2: #F4F8FD;
     --soft: #EAF4FF;
-    --primary: #0EA5E9;
-    --primary-2: #2563EB;
+    --accent-ink: #2563EB;
+    --line: rgba(14, 80, 160, 0.09);
+    --header: rgba(255, 255, 255, .62);
+    --header-line: rgba(255, 255, 255, .7);
+    --overlay: rgba(11, 37, 69, .32);
+    --tldr: linear-gradient(135deg, #F0F8FF, #EAF4FF);
+    --tag-bg: rgba(255, 255, 255, .9);
+    --hot-bg: #FFF1E6; --hot-ink: #C2410C;
+    --skel-1: #E7F1FC; --skel-2: #F5FAFF;
+    --blob-1: #7DD3FC; --blob-2: #93C5FD; --blob-3: #A5F3FC; --blob-op: .55;
     --grad: linear-gradient(135deg, #38BDF8 0%, #2563EB 100%);
     --shadow: 0 1px 2px rgba(11, 37, 69, .04), 0 8px 28px rgba(14, 80, 160, .08);
     --shadow-hover: 0 2px 4px rgba(11, 37, 69, .05), 0 18px 44px rgba(14, 80, 160, .16);
+    --modal-shadow: 0 40px 100px rgba(11, 37, 69, .3);
   }
+  /* ---------------- Тёмная тема: «ночное море» ---------------- */
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #071426;
+    --bg-grad: linear-gradient(180deg, #0B2442 0%, #081A31 360px, #071426 720px);
+    --ink: #E7F0FF;
+    --ink-2: #A8BEDB;
+    --muted: #6F88AA;
+    --card: #0E2038;
+    --surface: #10243F;
+    --surface-2: #0F2340;
+    --soft: #14305A;
+    --accent-ink: #7CB8FF;
+    --line: rgba(140, 180, 255, .12);
+    --header: rgba(7, 20, 38, .72);
+    --header-line: rgba(140, 180, 255, .08);
+    --overlay: rgba(2, 8, 20, .6);
+    --tldr: linear-gradient(135deg, #10294B, #0E2443);
+    --tag-bg: rgba(7, 20, 38, .78);
+    --hot-bg: rgba(249, 115, 22, .16); --hot-ink: #FDBA74;
+    --skel-1: #10243F; --skel-2: #183459;
+    --blob-1: #0EA5E9; --blob-2: #1D4ED8; --blob-3: #0891B2; --blob-op: .2;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 10px 30px rgba(0, 0, 0, .28);
+    --shadow-hover: 0 2px 6px rgba(0, 0, 0, .35), 0 20px 48px rgba(0, 0, 0, .45);
+    --modal-shadow: 0 40px 100px rgba(0, 0, 0, .6);
+  }
+
   *, *::before, *::after { box-sizing: border-box; }
   html, body, h1, h2, h3, h4, p, ul { margin: 0; padding: 0; }
   ul { list-style: none; }
@@ -35,81 +83,114 @@
 
   html { background: var(--bg); overflow-x: clip; }
   body {
-    min-height: 100vh; color: var(--ink);
+    min-height: 100vh; color: var(--ink); overflow-x: clip;
     font-family: "Manrope", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     -webkit-font-smoothing: antialiased;
-    background: linear-gradient(180deg, #DDF0FF 0%, #EEF7FF 340px, var(--bg) 700px);
+    background: var(--bg-grad);
+    transition: background-color .3s, color .3s;
   }
   body.locked { overflow: hidden; }
-  body { overflow-x: clip; }
 
-  /* Декоративные «капли» на фоне */
   .blobs { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
-  .blob { position: absolute; border-radius: 50%; filter: blur(70px); opacity: .55; animation: drift 22s ease-in-out infinite alternate; }
-  .blob.b1 { width: 520px; height: 520px; background: #7DD3FC; top: -180px; left: -120px; }
-  .blob.b2 { width: 460px; height: 460px; background: #93C5FD; top: -140px; right: -140px; animation-delay: -7s; }
-  .blob.b3 { width: 380px; height: 380px; background: #A5F3FC; top: 380px; left: 45%; opacity: .35; animation-delay: -12s; }
+  .blob { position: absolute; border-radius: 50%; filter: blur(70px); opacity: var(--blob-op); animation: drift 22s ease-in-out infinite alternate; }
+  .blob.b1 { width: 520px; height: 520px; background: var(--blob-1); top: -180px; left: -120px; }
+  .blob.b2 { width: 460px; height: 460px; background: var(--blob-2); top: -140px; right: -140px; animation-delay: -7s; }
+  .blob.b3 { width: 380px; height: 380px; background: var(--blob-3); top: 380px; left: 45%; opacity: calc(var(--blob-op) * .65); animation-delay: -12s; }
   @keyframes drift { to { transform: translate(40px, 30px) scale(1.08); } }
-  @media (prefers-reduced-motion: reduce) { .blob { animation: none; } }
+  @media (prefers-reduced-motion: reduce) { .blob, .w-icon { animation: none !important; } }
 
-  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 20px; }
+  .wrap { max-width: 1160px; margin: 0 auto; padding: 0 20px; }
 
-  /* Шапка */
+  /* ---------------- Шапка ---------------- */
   .header {
-    position: sticky; top: 0; z-index: 30;
-    background: rgba(255, 255, 255, .62);
+    position: sticky; top: 0; z-index: 30; background: var(--header);
     backdrop-filter: saturate(1.4) blur(18px); -webkit-backdrop-filter: saturate(1.4) blur(18px);
-    border-bottom: 1px solid rgba(255, 255, 255, .7);
-    box-shadow: 0 1px 0 var(--line);
+    border-bottom: 1px solid var(--header-line); box-shadow: 0 1px 0 var(--line);
   }
-  .header .wrap { height: 64px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-  .logo { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 20px; letter-spacing: -.02em; }
-  .logo-mark { width: 34px; height: 34px; border-radius: 11px; background: var(--grad); display: grid; place-items: center;
-    box-shadow: 0 6px 16px rgba(37, 99, 235, .35); }
-  .head-actions { display: flex; align-items: center; gap: 8px; }
+  .header .wrap { height: 64px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .head-left, .head-right { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .logo { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 20px; letter-spacing: -.02em; margin-right: 6px; }
+  .logo-mark { width: 34px; height: 34px; border-radius: 11px; background: var(--grad); display: grid; place-items: center; box-shadow: 0 6px 16px rgba(37, 99, 235, .35); flex: none; }
   .chip-btn {
-    height: 36px; padding: 0 14px; border-radius: 9999px; display: inline-flex; align-items: center; gap: 7px;
-    background: rgba(255, 255, 255, .85); border: 1px solid var(--line); font-size: 13.5px; font-weight: 600; color: var(--ink-2);
-    transition: background .2s, color .2s, box-shadow .2s, border-color .2s;
+    height: 38px; padding: 0 14px; border-radius: 9999px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; flex: none;
+    background: var(--surface); border: 1px solid var(--line); font-size: 13.5px; font-weight: 700; color: var(--ink-2);
+    transition: background .2s, color .2s, box-shadow .2s, border-color .2s, transform .15s;
   }
-  .chip-btn:hover { background: #fff; box-shadow: var(--shadow); color: var(--ink); }
-  .chip-btn.on { background: var(--soft); color: var(--primary-2); border-color: rgba(37, 99, 235, .25); }
+  .chip-btn:hover { box-shadow: var(--shadow); color: var(--ink); }
+  .chip-btn:active { transform: scale(.97); }
+  .chip-btn.icon { width: 38px; padding: 0; }
   .chip-btn.primary { background: var(--grad); color: #fff; border: 0; box-shadow: 0 6px 16px rgba(37, 99, 235, .3); }
-  .chip-btn.primary:hover { box-shadow: 0 8px 22px rgba(37, 99, 235, .42); }
+  .chip-btn.primary:hover { box-shadow: 0 8px 22px rgba(37, 99, 235, .42); color: #fff; }
   .chip-btn:disabled { opacity: .7; cursor: default; }
-  @media (max-width: 480px) { .chip-btn .lbl { display: none; } }
   .spin { animation: spin .9s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
 
-  /* Hero */
-  .hero { padding: 40px 0 8px; }
-  .hero h1 { font-size: clamp(30px, 4.4vw, 44px); font-weight: 800; letter-spacing: -.03em; line-height: 1.08; }
+  /* Переключатель RU / EN / KZ */
+  .seg { position: relative; display: inline-flex; padding: 3px; border-radius: 9999px; background: var(--surface); border: 1px solid var(--line); flex: none; }
+  .seg button { position: relative; z-index: 1; height: 30px; min-width: 44px; padding: 0 10px; border-radius: 9999px; font-size: 13px; font-weight: 800; color: var(--muted); transition: color .25s; letter-spacing: .02em; }
+  .seg button:hover { color: var(--ink); }
+  .seg button.on { color: #fff; }
+  .seg .thumb { position: absolute; z-index: 0; top: 3px; bottom: 3px; left: 3px; border-radius: 9999px; background: var(--grad);
+    box-shadow: 0 4px 12px rgba(37, 99, 235, .35); transition: transform .3s cubic-bezier(.3,.9,.3,1), width .3s; }
+
+  @media (max-width: 720px) {
+    .lbl { display: none; }
+    .logo span.name { display: none; }
+    .header .wrap { gap: 6px; }
+    .chip-btn.home { width: 38px; padding: 0; }
+    .chip-btn.refresh { width: 38px; padding: 0; }
+  }
+
+  /* ---------------- Hero + виджет ---------------- */
+  .hero { padding: 36px 0 8px; display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 28px; align-items: center; }
+  @media (max-width: 860px) { .hero { grid-template-columns: 1fr; gap: 20px; padding-top: 28px; } }
+  .hero h1 { font-size: clamp(30px, 4.4vw, 46px); font-weight: 800; letter-spacing: -.03em; line-height: 1.08; }
   .hero h1 .grad { background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
-  .hero p { margin-top: 10px; color: var(--ink-2); font-size: 15.5px; font-weight: 500; }
+  .hero p { margin-top: 12px; color: var(--ink-2); font-size: 15.5px; font-weight: 500; }
   .hero p .dot { color: var(--muted); padding: 0 6px; }
 
-  /* Панель тем */
+  .weather {
+    position: relative; overflow: hidden; border-radius: 26px; padding: 20px 22px; color: #fff; min-height: 190px;
+    background: var(--w-grad, linear-gradient(135deg, #38BDF8, #2563EB));
+    box-shadow: 0 18px 40px rgba(37, 99, 235, .28); isolation: isolate; transition: background .6s;
+  }
+  .weather::before, .weather::after { content: ""; position: absolute; border-radius: 50%; background: rgba(255,255,255,.14); z-index: -1; }
+  .weather::before { width: 220px; height: 220px; right: -70px; top: -90px; }
+  .weather::after { width: 160px; height: 160px; left: -50px; bottom: -80px; background: rgba(255,255,255,.08); }
+  .w-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+  .w-city { font-size: 14px; font-weight: 700; opacity: .92; display: flex; align-items: center; gap: 6px; }
+  .w-time { font-size: 40px; font-weight: 800; letter-spacing: -.03em; line-height: 1.05; margin-top: 4px; font-variant-numeric: tabular-nums; }
+  .w-time .colon { animation: blink 1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: .35; } }
+  .w-date { font-size: 13px; font-weight: 600; opacity: .85; margin-top: 2px; }
+  .w-icon { font-size: 54px; line-height: 1; filter: drop-shadow(0 8px 16px rgba(0,0,0,.18)); animation: float 5s ease-in-out infinite; }
+  @keyframes float { 50% { transform: translateY(-6px); } }
+  .w-temp { font-size: 30px; font-weight: 800; letter-spacing: -.02em; text-align: right; margin-top: 4px; }
+  .w-bottom { margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,.22); display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; font-size: 13px; font-weight: 600; }
+  .w-bottom .desc { font-weight: 800; }
+  .w-bottom span { opacity: .95; white-space: nowrap; }
+
+  /* ---------------- Темы ---------------- */
   .topics-bar { padding: 12px 0 0; margin-top: 14px; }
   .pills { display: flex; gap: 10px; overflow-x: auto; scrollbar-width: none; padding: 8px 20px 26px; margin: -8px -20px -18px; }
   .pills::-webkit-scrollbar { display: none; }
   .pill {
     flex: none; height: 42px; padding: 0 16px 0 7px; border-radius: 9999px; display: inline-flex; align-items: center; gap: 8px;
-    background: #fff; border: 1px solid var(--line); font-weight: 700; font-size: 14.5px; color: var(--ink-2);
+    background: var(--surface); border: 1px solid var(--line); font-weight: 700; font-size: 14.5px; color: var(--ink-2);
     box-shadow: 0 1px 2px rgba(11,37,69,.04); transition: transform .15s, box-shadow .2s, background .2s, color .2s;
   }
   .pill:hover { transform: translateY(-1px); box-shadow: var(--shadow); }
   .pill .emo { width: 29px; height: 29px; border-radius: 50%; display: grid; place-items: center; font-size: 15px; background: var(--soft); }
   .pill.active { color: #fff; border-color: transparent; background: var(--c); box-shadow: 0 6px 18px color-mix(in srgb, var(--c) 40%, transparent); }
   .pill.active .emo { background: rgba(255,255,255,.25); }
-  .pill.add { padding: 0; width: 42px; justify-content: center; color: var(--primary-2); border: 1.5px dashed rgba(37,99,235,.4); background: rgba(255,255,255,.6); font-size: 24px; font-weight: 500; }
-  .pill.add:hover { background: #fff; border-style: solid; }
+  .pill.add { padding: 0; width: 42px; justify-content: center; color: var(--accent-ink); border: 1.5px dashed color-mix(in srgb, var(--accent-ink) 45%, transparent); background: transparent; font-size: 24px; font-weight: 500; }
+  .pill.add:hover { background: var(--surface); border-style: solid; }
 
-  /* Секции */
-  main { padding-bottom: 40px; }
-  .section { margin-top: 26px; }
+  /* ---------------- Лента ---------------- */
+  main { padding-bottom: 40px; min-height: 40vh; }
+  .section { margin-top: 26px; scroll-margin-top: 80px; }
   .section-head { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
-  .section-icon { width: 38px; height: 38px; border-radius: 12px; display: grid; place-items: center; font-size: 19px;
-    background: color-mix(in srgb, var(--c) 14%, white); }
+  .section-icon { width: 38px; height: 38px; border-radius: 12px; display: grid; place-items: center; font-size: 19px; background: color-mix(in srgb, var(--c) 18%, var(--card)); }
   .section-head h2 { font-size: 22px; font-weight: 800; letter-spacing: -.02em; }
   .section-head .count { margin-left: auto; color: var(--muted); font-size: 13px; font-weight: 600; }
   .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; grid-auto-flow: dense; }
@@ -119,128 +200,148 @@
   .card {
     display: flex; flex-direction: column; text-align: left; width: 100%; overflow: hidden;
     background: var(--card); border-radius: 20px; border: 1px solid var(--line); box-shadow: var(--shadow);
-    transition: transform .22s cubic-bezier(.2,.8,.2,1), box-shadow .22s;
+    transition: transform .22s cubic-bezier(.2,.8,.2,1), box-shadow .22s, background .3s;
   }
   .card:hover { transform: translateY(-4px); box-shadow: var(--shadow-hover); }
   .card:focus-visible { outline: 3px solid rgba(14,165,233,.45); outline-offset: 2px; }
-  .media { position: relative; aspect-ratio: 16 / 9; background: var(--soft); overflow: hidden; width: 100%; }
-  .media img { width: 100%; height: 100%; object-fit: cover; transition: transform .5s ease; }
-  .card:hover .media img { transform: scale(1.04); }
+
+  /* Превью. Если картинка маленькая или другой формы — она вписывается целиком
+     поверх размытой копии себя, а не растягивается. */
+  .media { position: relative; aspect-ratio: 16 / 9; background: var(--soft); overflow: hidden; width: 100%; flex: none; }
+  .media img.fg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transition: transform .5s ease, opacity .3s; }
+  .media img.bg { display: none; }
+  .media.fit img.bg { display: block; position: absolute; inset: -20px; width: calc(100% + 40px); height: calc(100% + 40px); object-fit: cover; filter: blur(22px) saturate(1.3); opacity: .85; transform: scale(1.05); }
+  .media.fit img.fg { object-fit: contain; inset: 10px; width: calc(100% - 20px); height: calc(100% - 20px); filter: drop-shadow(0 8px 22px rgba(0,0,0,.25)); }
+  .media.fit.tiny img.fg { inset: 0; margin: auto; width: auto; height: auto; max-width: calc(100% - 32px); max-height: calc(100% - 32px); border-radius: 10px; }
+  .card:hover .media:not(.fit) img.fg { transform: scale(1.04); }
   .ph { position: absolute; inset: 0; display: grid; place-items: center;
-    background: radial-gradient(circle at 25% 20%, rgba(255,255,255,.55), transparent 45%),
+    background: radial-gradient(circle at 25% 20%, rgba(255,255,255,.5), transparent 45%),
                 linear-gradient(135deg, color-mix(in srgb, var(--c) 55%, #BAE6FD), color-mix(in srgb, var(--c) 85%, #1E3A8A)); }
   .ph span { font-size: 44px; filter: drop-shadow(0 6px 14px rgba(0,0,0,.18)); }
-  .tag { position: absolute; top: 12px; left: 12px; height: 26px; padding: 0 10px; border-radius: 9999px; display: inline-flex; align-items: center; gap: 6px;
-    font-size: 12px; font-weight: 700; color: var(--ink); background: rgba(255,255,255,.9);
-    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+  .tag { position: absolute; z-index: 2; top: 12px; left: 12px; height: 26px; padding: 0 10px; border-radius: 9999px; display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12px; font-weight: 700; color: var(--ink); background: var(--tag-bg); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
   .tag i { width: 7px; height: 7px; border-radius: 50%; background: var(--c); }
   .body { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 8px; flex: 1; width: 100%; }
   .meta { color: var(--muted); font-size: 12.5px; font-weight: 600; display: flex; gap: 6px; align-items: center; min-width: 0; flex-wrap: wrap; }
   .meta .src { color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 60%; }
-  .title { font-size: 16.5px; font-weight: 700; line-height: 1.32; letter-spacing: -.01em;
-    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-  .lead { color: var(--ink-2); font-size: 14px; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .title { font-size: 16.5px; font-weight: 700; line-height: 1.32; letter-spacing: -.01em; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .lead { color: var(--ink-2); font-size: 14px; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
   .foot { margin-top: auto; padding-top: 4px; display: flex; gap: 6px; flex-wrap: wrap; }
-  .badge { height: 24px; padding: 0 9px; border-radius: 9999px; display: inline-flex; align-items: center; gap: 4px;
-    font-size: 12px; font-weight: 700; background: var(--soft); color: var(--primary-2); white-space: nowrap; }
-  .badge.hot { background: #FFF1E6; color: #C2410C; }
-  .badge.en { background: #F1F5F9; color: #64748B; }
+  .badge { height: 24px; padding: 0 9px; border-radius: 9999px; display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 700; background: var(--soft); color: var(--accent-ink); white-space: nowrap; }
+  .badge.hot { background: var(--hot-bg); color: var(--hot-ink); }
 
+  /* Главная карточка секции */
   .card.featured { grid-column: span 2; }
+  .card.featured .title { font-size: 22px; line-height: 1.25; letter-spacing: -.02em; }
   @media (min-width: 921px) {
     .card.featured { grid-row: span 2; }
-    .card.featured .media { aspect-ratio: auto !important; flex: 1 1 auto; min-height: 260px; }
-    .card.featured .body { flex: none; }
+    .card.featured .media { aspect-ratio: auto; flex: 1 1 auto; min-height: 240px; }
   }
-  .card.featured .title { font-size: 22px; line-height: 1.25; letter-spacing: -.02em; }
-  .card.featured .media { aspect-ratio: 21 / 9; }
-  @media (max-width: 600px) { .card.featured { grid-column: auto; } .card.featured .title { font-size: 19px; } .card.featured .media { aspect-ratio: 16/9; } }
+  @media (max-width: 600px) { .card.featured { grid-column: auto; } .card.featured .title { font-size: 19px; } }
 
-  .empty { background: rgba(255,255,255,.7); border: 1.5px dashed rgba(14,80,160,.15); border-radius: 20px; padding: 26px; text-align: center; color: var(--ink-2); font-weight: 500; }
+  .empty { background: color-mix(in srgb, var(--card) 70%, transparent); border: 1.5px dashed var(--line); border-radius: 20px; padding: 26px; text-align: center; color: var(--ink-2); font-weight: 500; }
   .empty-big { padding: 60px 20px; margin-top: 20px; }
   .empty-big .emoji { font-size: 44px; margin-bottom: 12px; }
 
-  .skeleton { background: linear-gradient(90deg, #E7F1FC 0%, #F5FAFF 50%, #E7F1FC 100%); background-size: 200% 100%; animation: shimmer 1.4s ease infinite; border-radius: 10px; }
+  .skeleton { background: linear-gradient(90deg, var(--skel-1) 0%, var(--skel-2) 50%, var(--skel-1) 100%); background-size: 200% 100%; animation: shimmer 1.4s ease infinite; border-radius: 10px; }
   @keyframes shimmer { to { background-position: -200% 0; } }
 
-  /* Подвал */
+  /* ---------------- Подвал ---------------- */
   footer { padding: 10px 0 40px; color: var(--muted); font-size: 13px; font-weight: 500; }
   footer details summary { cursor: pointer; display: inline-flex; gap: 6px; align-items: center; list-style: none; }
   footer details summary::-webkit-details-marker { display: none; }
   footer details summary:hover { color: var(--ink-2); }
-  .src-list { margin-top: 12px; display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 6px 18px; }
+  .src-list { margin-top: 12px; display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 6px 18px; }
   .src-list li { display: flex; gap: 8px; align-items: baseline; min-width: 0; }
   .src-list .ok { color: #16A34A; } .src-list .bad { color: #DC2626; }
+  .src-list .rg { font-size: 10px; font-weight: 800; color: var(--accent-ink); background: var(--soft); border-radius: 6px; padding: 1px 5px; }
   .src-list small { color: var(--muted); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-  /* Модальные окна */
+  /* ---------------- Кнопка «наверх» ---------------- */
+  .to-top {
+    position: fixed; left: 22px; bottom: 22px; z-index: 40; width: 50px; height: 50px; border-radius: 50%;
+    display: grid; place-items: center; color: #fff; background: var(--grad);
+    box-shadow: 0 10px 26px rgba(37, 99, 235, .4);
+    opacity: 0; transform: translateY(16px) scale(.85); pointer-events: none;
+    transition: opacity .25s ease, transform .3s cubic-bezier(.3,.9,.3,1.2), box-shadow .2s;
+  }
+  .to-top.show { opacity: 1; transform: none; pointer-events: auto; }
+  .to-top:hover { box-shadow: 0 14px 32px rgba(37, 99, 235, .5); transform: translateY(-2px); }
+  @media (max-width: 600px) { .to-top { left: 16px; bottom: 16px; width: 46px; height: 46px; } }
+
+  /* ---------------- Модальные окна ---------------- */
   .overlay { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; padding: 24px 16px;
-    background: rgba(11, 37, 69, .32); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); opacity: 0; transition: opacity .2s ease; }
+    background: var(--overlay); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); opacity: 0; transition: opacity .2s ease; }
   .overlay.show { opacity: 1; }
   .modal { position: relative; width: 100%; max-width: 680px; max-height: calc(100vh - 48px); overflow-y: auto; overscroll-behavior: contain;
-    background: #fff; border-radius: 26px; box-shadow: 0 40px 100px rgba(11, 37, 69, .3);
+    background: var(--card); border-radius: 26px; box-shadow: var(--modal-shadow); border: 1px solid var(--line);
     transform: translateY(14px) scale(.98); transition: transform .28s cubic-bezier(.2,.8,.2,1); }
   .overlay.show .modal { transform: none; }
   .close { position: absolute; top: 14px; right: 14px; z-index: 3; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center;
-    background: rgba(255,255,255,.92); color: var(--ink); box-shadow: 0 2px 10px rgba(11,37,69,.15); transition: transform .15s; }
+    background: var(--tag-bg); color: var(--ink); box-shadow: 0 2px 10px rgba(11,37,69,.15); transition: transform .15s; backdrop-filter: blur(8px); }
   .close:hover { transform: scale(1.06); }
-  .r-hero { position: relative; aspect-ratio: 2 / 1; max-height: 340px; width: 100%; background: var(--soft); overflow: hidden; }
-  .r-hero.small { aspect-ratio: auto; height: 120px; }
-  .r-hero .media { position: absolute; inset: 0; aspect-ratio: auto; height: 100%; }
+  .r-hero { position: relative; width: 100%; background: var(--soft); overflow: hidden; }
+  .r-hero .media { aspect-ratio: 2 / 1; max-height: 360px; }
+  .r-hero.small .media { aspect-ratio: auto; height: 120px; }
   .r-body { padding: 22px 28px 28px; }
   @media (max-width: 600px) { .r-body { padding: 18px 20px 22px; } }
   .r-title { font-size: 24px; font-weight: 800; line-height: 1.22; letter-spacing: -.02em; margin-top: 10px; }
-  .tldr-box { margin-top: 18px; background: linear-gradient(135deg, #F0F8FF, #EAF4FF); border: 1px solid rgba(37,99,235,.1); border-radius: 18px; padding: 16px 18px; }
-  .tldr-box h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--primary-2); font-weight: 800; margin-bottom: 10px; }
+  .tldr-box { margin-top: 18px; background: var(--tldr); border: 1px solid var(--line); border-radius: 18px; padding: 16px 18px; }
+  .tldr-box h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--accent-ink); font-weight: 800; margin-bottom: 10px; }
   .tldr li { position: relative; padding-left: 20px; line-height: 1.55; font-size: 15.5px; color: var(--ink); }
   .tldr li + li { margin-top: 8px; }
   .tldr li::before { content: ""; position: absolute; left: 3px; top: .6em; width: 8px; height: 8px; border-radius: 50%; background: var(--grad); }
   .fulltext { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line); }
-  .fulltext p { font-size: 15.5px; line-height: 1.7; color: #233A57; margin-bottom: 12px; }
-  .link-btn { margin-top: 12px; color: var(--primary-2); font-weight: 700; font-size: 14px; }
+  .fulltext p { font-size: 15.5px; line-height: 1.7; color: var(--ink-2); margin-bottom: 12px; }
+  .link-btn { margin-top: 12px; color: var(--accent-ink); font-weight: 700; font-size: 14px; }
   .also { margin-top: 18px; }
   .also h4 { margin-bottom: 8px; font-size: 13px; color: var(--muted); font-weight: 700; }
   .also .row { display: flex; gap: 6px; flex-wrap: wrap; }
-  .also a { height: 30px; padding: 0 12px; border-radius: 9999px; display: inline-flex; align-items: center; background: #F4F8FD; border: 1px solid var(--line);
-    font-size: 13px; font-weight: 600; color: var(--ink-2); transition: background .2s; }
-  .also a:hover { background: var(--soft); color: var(--primary-2); }
+  .also a { height: 30px; padding: 0 12px; border-radius: 9999px; display: inline-flex; align-items: center; background: var(--surface-2); border: 1px solid var(--line); font-size: 13px; font-weight: 600; color: var(--ink-2); transition: background .2s; }
+  .also a:hover { background: var(--soft); color: var(--accent-ink); }
   .actions { display: flex; gap: 10px; margin-top: 22px; flex-wrap: wrap; }
-  .btn { flex: 1 1 200px; height: 48px; border-radius: 14px; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-    font-weight: 700; font-size: 15px; transition: transform .15s, box-shadow .2s, background .2s; }
+  .btn { flex: 1 1 200px; height: 48px; border-radius: 14px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-weight: 700; font-size: 15px; transition: transform .15s, box-shadow .2s, background .2s; }
   .btn:hover { transform: translateY(-1px); }
   .btn-primary { background: var(--grad); color: #fff; box-shadow: 0 8px 22px rgba(37,99,235,.3); }
-  .btn-secondary { background: var(--soft); color: var(--primary-2); }
+  .btn-secondary { background: var(--soft); color: var(--accent-ink); }
 
   /* Каталог тем */
-  .t-modal { max-width: 760px; }
+  .t-modal { max-width: 780px; }
   .t-body { padding: 28px; }
   @media (max-width: 600px) { .t-body { padding: 22px 18px; } }
   .t-body h2 { font-size: 26px; font-weight: 800; letter-spacing: -.02em; }
-  .t-body > p { color: var(--ink-2); margin-top: 6px; font-weight: 500; }
-  .t-grid { margin-top: 20px; display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; }
-  .tile { text-align: left; border-radius: 18px; padding: 14px; border: 1.5px solid var(--line); background: #fff; display: flex; gap: 12px; align-items: center;
-    transition: border-color .2s, box-shadow .2s, transform .15s, background .2s; }
+  .t-sub { color: var(--ink-2); margin-top: 6px; font-weight: 500; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .counter { height: 26px; padding: 0 10px; border-radius: 9999px; display: inline-flex; align-items: center; font-size: 13px; font-weight: 800; background: var(--soft); color: var(--accent-ink); transition: background .2s, color .2s; }
+  .counter.full { background: var(--hot-bg); color: var(--hot-ink); }
+  .t-grid { margin-top: 20px; display: grid; grid-template-columns: repeat(auto-fill, minmax(215px, 1fr)); gap: 12px; }
+  .tile { text-align: left; border-radius: 18px; padding: 14px; border: 1.5px solid var(--line); background: var(--surface); display: flex; gap: 12px; align-items: center; transition: border-color .2s, box-shadow .2s, transform .15s, background .2s; }
   .tile:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
-  .tile .ic { flex: none; width: 46px; height: 46px; border-radius: 14px; display: grid; place-items: center; font-size: 23px;
-    background: color-mix(in srgb, var(--c) 15%, white); }
-  .tile b { display: block; font-size: 15px; font-weight: 800; }
+  .tile .ic { flex: none; width: 46px; height: 46px; border-radius: 14px; display: grid; place-items: center; font-size: 23px; background: color-mix(in srgb, var(--c) 18%, var(--card)); }
+  .tile > span:nth-child(2) { flex: 1; min-width: 0; }
+  .tile b { display: block; font-size: 15px; font-weight: 800; overflow-wrap: anywhere; hyphens: auto; }
   .tile small { display: block; color: var(--muted); font-size: 12.5px; font-weight: 500; margin-top: 2px; line-height: 1.35; }
-  .tile .st { margin-left: auto; flex: none; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-size: 15px; font-weight: 800;
-    background: var(--soft); color: var(--primary-2); }
-  .tile.on { border-color: var(--c); background: color-mix(in srgb, var(--c) 5%, white); }
+  .tile .st { margin-left: auto; flex: none; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-size: 15px; font-weight: 800; background: var(--soft); color: var(--accent-ink); }
+  .tile.on { border-color: var(--c); background: color-mix(in srgb, var(--c) 8%, var(--surface)); }
   .tile.on .st { background: var(--c); color: #fff; }
-  .custom { margin-top: 26px; padding: 18px; border-radius: 20px; background: linear-gradient(135deg, #F0F8FF, #EAF4FF); border: 1px solid rgba(37,99,235,.1); }
+  .tile.shake { animation: shake .35s; }
+  @keyframes shake { 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
+  .hint { margin-top: 12px; min-height: 20px; font-size: 13.5px; font-weight: 700; color: var(--hot-ink); }
+  .custom { margin-top: 18px; padding: 18px; border-radius: 20px; background: var(--tldr); border: 1px solid var(--line); }
   .custom h3 { font-size: 16px; font-weight: 800; }
   .custom p { color: var(--ink-2); font-size: 13.5px; margin-top: 4px; font-weight: 500; }
   .form { display: grid; grid-template-columns: 1fr 2fr auto; gap: 8px; margin-top: 12px; }
   @media (max-width: 600px) { .form { grid-template-columns: 1fr; } }
-  .input { height: 44px; border-radius: 12px; border: 1px solid rgba(14,80,160,.15); background: #fff; padding: 0 14px; font-size: 14.5px; outline: none; transition: border-color .2s, box-shadow .2s; min-width: 0; }
-  .input:focus { border-color: var(--primary); box-shadow: 0 0 0 4px rgba(14,165,233,.15); }
-  .form .chip-btn { height: 44px; border-radius: 12px; justify-content: center; }
+  .input { height: 44px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); padding: 0 14px; font-size: 14.5px; outline: none; transition: border-color .2s, box-shadow .2s; min-width: 0; }
+  .input::placeholder { color: var(--muted); }
+  .input:focus { border-color: #0EA5E9; box-shadow: 0 0 0 4px rgba(14,165,233,.18); }
+  .form .chip-btn { height: 44px; border-radius: 12px; }
   .my-topics { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
-  .my-topics span { height: 32px; padding: 0 6px 0 12px; border-radius: 9999px; display: inline-flex; align-items: center; gap: 6px; background: #fff; border: 1px solid var(--line); font-size: 13.5px; font-weight: 700; }
-  .my-topics button { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; color: var(--muted); }
-  .my-topics button:hover { background: #FEE2E2; color: #DC2626; }
+  .my-chip { height: 34px; padding: 0 6px 0 4px; border-radius: 9999px; display: inline-flex; align-items: center; gap: 4px; background: var(--surface); border: 1.5px solid var(--line); font-size: 13.5px; font-weight: 700; }
+  .my-chip.on { border-color: var(--c); }
+  .my-chip .tg { height: 26px; padding: 0 8px; border-radius: 9999px; display: inline-flex; align-items: center; gap: 6px; }
+  .my-chip .tg:hover { background: var(--soft); }
+  .my-chip .rm { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; color: var(--muted); }
+  .my-chip .rm:hover { background: #FEE2E2; color: #DC2626; }
 </style>
 </head>
 <body>
@@ -248,18 +349,30 @@
 
 <header class="header">
   <div class="wrap">
-    <div class="logo">
-      <span class="logo-mark">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round">
-          <path d="M2 15c2.2 0 2.2-2.4 4.4-2.4S8.6 15 10.8 15s2.2-2.4 4.4-2.4 2.2 2.4 4.4 2.4 2.2-2.4 2.4-2.4"/>
-          <path d="M2 9.5c2.2 0 2.2-2.4 4.4-2.4s2.2 2.4 4.4 2.4 2.2-2.4 4.4-2.4 2.2 2.4 4.4 2.4 2.2-2.4 2.4-2.4" opacity=".6"/>
-        </svg>
-      </span>
-      Волна
+    <div class="head-left">
+      <a class="logo" href="#" id="logo" aria-label="Волна — на главную">
+        <span class="logo-mark">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round">
+            <path d="M2 15c2.2 0 2.2-2.4 4.4-2.4S8.6 15 10.8 15s2.2-2.4 4.4-2.4 2.2 2.4 4.4 2.4 2.2-2.4 2.4-2.4"/>
+            <path d="M2 9.5c2.2 0 2.2-2.4 4.4-2.4s2.2 2.4 4.4 2.4 2.2-2.4 4.4-2.4 2.2 2.4 4.4 2.4 2.2-2.4 2.4-2.4" opacity=".6"/>
+          </svg>
+        </span>
+        <span class="name">Волна</span>
+      </a>
+      <button id="homeBtn" class="chip-btn home" title="Домой — к началу ленты">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V9.5"/></svg>
+        <span class="lbl">Домой</span>
+      </button>
     </div>
-    <div class="head-actions">
-      <button id="langBtn" class="chip-btn" title="Показывать только новости на русском">🇷🇺 <span class="lbl">Только RU</span></button>
-      <button id="refreshBtn" class="chip-btn primary" title="Обновить ленту">
+    <div class="head-right">
+      <div class="seg" id="regionSeg" role="radiogroup" aria-label="Источники">
+        <span class="thumb" id="segThumb"></span>
+        <button data-region="ru" role="radio" title="Русскоязычные источники">RU</button>
+        <button data-region="en" role="radio" title="Англоязычные источники">EN</button>
+        <button data-region="kz" role="radio" title="Источники Казахстана (на русском)">KZ</button>
+      </div>
+      <button id="themeBtn" class="chip-btn icon" title="Сменить тему" aria-label="Сменить тему"></button>
+      <button id="refreshBtn" class="chip-btn primary refresh" title="Обновить ленту">
         <svg id="refreshIcon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
         <span class="lbl">Обновить</span>
       </button>
@@ -268,12 +381,28 @@
 </header>
 
 <div class="wrap">
-  <section class="hero">
-    <h1><span id="greet">Привет</span>,<br><span class="grad">вот что важно сегодня</span></h1>
-    <p><span id="today"></span><span class="dot">•</span><span id="status">загружаем…</span></p>
+  <section class="hero" id="top">
+    <div>
+      <h1><span id="greet">Привет</span>,<br><span class="grad">вот что важно сегодня</span></h1>
+      <p><span id="regionLabel"></span><span class="dot">•</span><span id="status">загружаем…</span></p>
+    </div>
+    <aside class="weather" id="weather" aria-label="Погода и время">
+      <div class="w-row">
+        <div>
+          <div class="w-city">📍 <span id="wCity">Астана</span></div>
+          <div class="w-time" id="wTime">--:--</div>
+          <div class="w-date" id="wDate"></div>
+        </div>
+        <div>
+          <div class="w-icon" id="wIcon">🌤️</div>
+          <div class="w-temp" id="wTemp">…</div>
+        </div>
+      </div>
+      <div class="w-bottom" id="wBottom"><span class="desc">Загружаем погоду…</span></div>
+    </aside>
   </section>
 
-  <div class="topics-bar" id="topicsBar">
+  <div class="topics-bar">
     <nav class="pills" id="pills" aria-label="Темы"></nav>
   </div>
 
@@ -286,6 +415,10 @@
     </details>
   </footer>
 </div>
+
+<button class="to-top" id="toTop" aria-label="Наверх" title="Наверх">
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>
+</button>
 
 <!-- Режим чтения -->
 <div id="reader" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="rTitle">
@@ -311,9 +444,10 @@
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
     </button>
     <div class="t-body">
-      <h2 id="tTitle">Ваши темы</h2>
-      <p>Нажмите на тему, чтобы добавить её в ленту или убрать.</p>
+      <h2 id="tTitle">Темы на главной</h2>
+      <div class="t-sub">Нажмите на тему, чтобы добавить её или убрать. <span class="counter" id="tCounter"></span></div>
       <div class="t-grid" id="tGrid"></div>
+      <div class="hint" id="tHint" aria-live="polite"></div>
       <div class="custom">
         <h3>✨ Своя тема</h3>
         <p>Название и ключевые слова через запятую. Начала слов тоже работают: «электромоб» найдёт «электромобиль».</p>
@@ -331,19 +465,23 @@
 <script>
 (() => {
   const $ = (id) => document.getElementById(id);
+  const STATE_VERSION = 2;
   const CUSTOM_COLORS = ["#0EA5E9", "#14B8A6", "#6366F1", "#EC4899", "#F59E0B", "#10B981", "#8B5CF6", "#F43F5E"];
   const CUSTOM_EMOJI = ["✨", "💡", "📌", "🌊", "⭐", "🔖", "🧭", "🎯"];
+  const REGION_LABEL = { ru: "Русскоязычные источники", en: "Англоязычные источники", kz: "Источники Казахстана" };
 
   // ---------------- состояние (localStorage) ----------------
   const store = {
     get(key, fallback) { try { const v = JSON.parse(localStorage.getItem("volna." + key)); return v ?? fallback; } catch (_) { return fallback; } },
     set(key, value) { try { localStorage.setItem("volna." + key, JSON.stringify(value)); } catch (_) {} },
   };
-  const catalog = {};        // id → {name, emoji, color, description}
-  let myTopics = [];         // порядок тем в панели
+  const catalog = {};
+  let maxTopics = 7;
+  let myTopics = [];
   let hidden = new Set(store.get("hidden", []));
   let custom = store.get("custom", []);
-  let lang = store.get("lang", "all");
+  let region = store.get("region", "ru");
+  if (!["ru", "en", "kz"].includes(region)) region = "ru";
   let lastData = null;
 
   function topicInfo(id) {
@@ -352,7 +490,8 @@
     return c ? { name: c.name, emoji: c.emoji, color: c.color, custom: true } : null;
   }
   function save() {
-    store.set("topics", myTopics); store.set("hidden", [...hidden]); store.set("custom", custom); store.set("lang", lang);
+    store.set("topics", myTopics); store.set("hidden", [...hidden]); store.set("custom", custom);
+    store.set("region", region); store.set("v", STATE_VERSION);
   }
 
   // ---------------- утилиты ----------------
@@ -377,39 +516,162 @@
     const d = Math.floor(s / 86400); return `${d} ${plural(d, ["день", "дня", "дней"])} назад`;
   }
   function host(url) { try { return new URL(url).hostname.replace(/^www\./, ""); } catch (_) { return ""; } }
-  function placeholder(info) {
-    return el("div", { class: "ph", style: `--c:${info.color}` }, el("span", {}, info.emoji));
-  }
+  function placeholder(info) { return el("div", { class: "ph", style: `--c:${info.color}` }, el("span", {}, info.emoji)); }
+
+  // Картинка: если она маленькая или сильно другой формы — вписываем целиком
+  // поверх размытой копии (без растягивания и обрезки текста на картинке).
   function media(item, info) {
     const box = el("div", { class: "media", style: `--c:${info.color}` });
-    if (item.image_url) {
-      const img = el("img", { src: item.image_url, alt: "", loading: "lazy", referrerpolicy: "no-referrer" });
-      img.addEventListener("error", () => img.replaceWith(placeholder(info)), { once: true });
-      box.append(img);
-    } else box.append(placeholder(info));
+    if (!item.image_url) { box.append(placeholder(info)); return box; }
+    const bg = el("img", { class: "bg", src: item.image_url, alt: "", "aria-hidden": "true", referrerpolicy: "no-referrer" });
+    const fg = el("img", { class: "fg", src: item.image_url, alt: "", loading: "lazy", referrerpolicy: "no-referrer" });
+    const decide = () => {
+      const w = fg.naturalWidth, h = fg.naturalHeight, bw = box.clientWidth, bh = box.clientHeight;
+      if (!w || !h || !bw || !bh) return;
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const tooSmall = w * 1.15 < bw * Math.min(dpr, 1.5) || h * 1.15 < bh;
+      const shapeOff = Math.abs(Math.log((w / h) / (bw / bh))) > 0.3;
+      box.classList.toggle("fit", tooSmall || shapeOff);
+      box.classList.toggle("tiny", w < bw * 0.5 && h < bh * 0.6);
+    };
+    fg.addEventListener("load", decide);
+    fg.addEventListener("error", () => { box.replaceChildren(placeholder(info)); }, { once: true });
+    box._decide = decide;
+    box.append(bg, fg);
     return box;
   }
+  let resizeTimer;
+  window.addEventListener("resize", () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => document.querySelectorAll(".media").forEach((m) => m._decide && m._decide()), 150);
+  });
+
   function badges(item) {
     const out = [];
     const n = (item.also || []).length;
     if (n) out.push(el("span", { class: "badge hot" }, `🔥 ещё ${n} ${plural(n, ["источник", "источника", "источников"])}`));
     if (item.comments_count > 0) out.push(el("span", { class: "badge" }, `💬 ${item.comments_count.toLocaleString("ru-RU")}`));
-    if (item.lang === "en") out.push(el("span", { class: "badge en" }, "EN"));
     return out;
   }
 
-  // ---------------- шапка ----------------
-  function renderHero() {
+  // ---------------- плавная прокрутка наверх ----------------
+  let scrollAnim = null;
+  function scrollToTop() {
+    const start = window.scrollY;
+    if (start <= 0) return;
+    cancelAnimationFrame(scrollAnim);
+    const duration = Math.min(650, 280 + start / 10);   // быстро, но без рывка
+    const t0 = performance.now();
+    const ease = (p) => (p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2); // easeInOutCubic
+    const stop = () => cancelAnimationFrame(scrollAnim);
+    window.addEventListener("wheel", stop, { once: true, passive: true });
+    window.addEventListener("touchstart", stop, { once: true, passive: true });
+    (function step(now) {
+      const p = Math.min(1, (now - t0) / duration);
+      window.scrollTo(0, Math.round(start * (1 - ease(p))));
+      if (p < 1) scrollAnim = requestAnimationFrame(step);
+    })(t0);
+  }
+  const toTop = $("toTop");
+  let ticking = false;
+  window.addEventListener("scroll", () => {
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(() => { toTop.classList.toggle("show", window.scrollY > 500); ticking = false; });
+  }, { passive: true });
+  toTop.addEventListener("click", scrollToTop);
+
+  function goHome(e) {
+    if (e) e.preventDefault();
+    document.querySelectorAll(".overlay.show").forEach(closeModal);
+    scrollToTop();
+    reload();
+  }
+  $("homeBtn").addEventListener("click", goHome);
+  $("logo").addEventListener("click", goHome);
+
+  // ---------------- тема ----------------
+  const SUN = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6l1.4 1.4M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4 6 18M18 6l1.4-1.4"/></svg>';
+  const MOON = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.5 14.5A8.5 8.5 0 0 1 9.5 3.5a8.5 8.5 0 1 0 11 11z"/></svg>';
+  function renderTheme() {
+    const dark = document.documentElement.dataset.theme === "dark";
+    $("themeBtn").innerHTML = dark ? SUN : MOON;
+    $("themeBtn").title = dark ? "Светлая тема" : "Тёмная тема";
+  }
+  $("themeBtn").addEventListener("click", () => {
+    const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+    document.documentElement.dataset.theme = next;
+    store.set("theme", next);
+    renderTheme();
+  });
+
+  // ---------------- регион ----------------
+  function renderRegion() {
+    const btns = [...$("regionSeg").querySelectorAll("button")];
+    btns.forEach((b) => { const on = b.dataset.region === region; b.classList.toggle("on", on); b.setAttribute("aria-checked", String(on)); });
+    const active = btns.find((b) => b.dataset.region === region);
+    const thumb = $("segThumb");
+    thumb.style.width = active.offsetWidth + "px";
+    thumb.style.transform = `translateX(${active.offsetLeft - 3}px)`;
+    $("regionLabel").textContent = REGION_LABEL[region];
+  }
+  $("regionSeg").addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-region]");
+    if (!b || b.dataset.region === region) return;
+    region = b.dataset.region; save(); renderRegion(); skeleton(); reload();
+  });
+
+  // ---------------- приветствие ----------------
+  function renderGreeting() {
     const h = new Date().getHours();
     $("greet").textContent = h < 5 ? "Доброй ночи" : h < 12 ? "Доброе утро" : h < 18 ? "Добрый день" : "Добрый вечер";
-    const d = new Date().toLocaleDateString("ru-RU", { weekday: "long", day: "numeric", month: "long" });
-    $("today").textContent = d.charAt(0).toUpperCase() + d.slice(1);
   }
-  function renderLang() {
-    $("langBtn").classList.toggle("on", lang === "ru");
-    $("langBtn").setAttribute("aria-pressed", String(lang === "ru"));
+
+  // ---------------- погода и время ----------------
+  const WMO = {
+    0: ["Ясно", "☀️", "🌙"], 1: ["Малооблачно", "🌤️", "🌙"], 2: ["Переменная облачность", "⛅", "☁️"], 3: ["Пасмурно", "☁️", "☁️"],
+    45: ["Туман", "🌫️"], 48: ["Изморозь", "🌫️"], 51: ["Лёгкая морось", "🌦️"], 53: ["Морось", "🌦️"], 55: ["Сильная морось", "🌧️"],
+    56: ["Ледяная морось", "🌧️"], 57: ["Ледяная морось", "🌧️"], 61: ["Небольшой дождь", "🌦️"], 63: ["Дождь", "🌧️"], 65: ["Ливень", "🌧️"],
+    66: ["Ледяной дождь", "🌧️"], 67: ["Ледяной дождь", "🌧️"], 71: ["Небольшой снег", "🌨️"], 73: ["Снег", "🌨️"], 75: ["Сильный снег", "❄️"],
+    77: ["Снежная крупа", "🌨️"], 80: ["Ливень", "🌦️"], 81: ["Ливень", "🌧️"], 82: ["Сильный ливень", "⛈️"], 85: ["Снегопад", "🌨️"],
+    86: ["Сильный снегопад", "❄️"], 95: ["Гроза", "⛈️"], 96: ["Гроза с градом", "⛈️"], 99: ["Гроза с градом", "⛈️"],
+  };
+  function weatherGradient(code, isDay) {
+    if (!isDay) return "linear-gradient(135deg, #1E3A8A 0%, #0B1638 100%)";
+    if (code >= 95) return "linear-gradient(135deg, #52607E 0%, #1F2A44 100%)";
+    if ((code >= 71 && code <= 77) || code === 85 || code === 86) return "linear-gradient(135deg, #8DB8F0 0%, #4F7FD9 100%)";
+    if (code >= 51) return "linear-gradient(135deg, #5B7DB1 0%, #2C4A7A 100%)";
+    if (code >= 2) return "linear-gradient(135deg, #79A3D1 0%, #3567B5 100%)";
+    return "linear-gradient(135deg, #38BDF8 0%, #2563EB 100%)";
   }
-  $("langBtn").addEventListener("click", () => { lang = lang === "ru" ? "all" : "ru"; save(); renderLang(); reload(); });
+  let utcOffset = 5 * 3600; // Казахстан: UTC+5
+  function fmtTemp(t) { const r = Math.round(t); return (r > 0 ? "+" : r < 0 ? "−" : "") + Math.abs(r) + "°"; }
+  function tickClock() {
+    const local = new Date(Date.now() + utcOffset * 1000);
+    const hh = String(local.getUTCHours()).padStart(2, "0"), mm = String(local.getUTCMinutes()).padStart(2, "0");
+    $("wTime").replaceChildren(hh, el("span", { class: "colon" }, ":"), mm);
+    const d = local.toLocaleDateString("ru-RU", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
+    $("wDate").textContent = d.charAt(0).toUpperCase() + d.slice(1) + " · местное время";
+  }
+  async function loadWeather() {
+    try {
+      const w = await (await fetch("/api/weather")).json();
+      if (w.utc_offset != null) utcOffset = w.utc_offset;
+      $("wCity").textContent = w.city || "Астана";
+      tickClock();
+      if (!w.ok) { $("wTemp").textContent = ""; $("wBottom").replaceChildren(el("span", { class: "desc" }, "Погода временно недоступна")); return; }
+      const [desc, dayIcon, nightIcon] = WMO[w.code] || ["", "🌡️"];
+      $("wIcon").textContent = !w.is_day && nightIcon ? nightIcon : dayIcon;
+      $("wTemp").textContent = fmtTemp(w.temp);
+      $("weather").style.setProperty("--w-grad", weatherGradient(w.code, w.is_day));
+      const parts = [el("span", { class: "desc" }, `${desc}, ощущается ${fmtTemp(w.feels)}`)];
+      if (w.tmax != null) parts.push(el("span", {}, `↑${fmtTemp(w.tmax)} ↓${fmtTemp(w.tmin)}`));
+      parts.push(el("span", {}, `💨 ${Math.round(w.wind)} м/с`), el("span", {}, `💧 ${w.humidity}%`));
+      $("wBottom").replaceChildren(...parts);
+    } catch (_) {
+      $("wBottom").replaceChildren(el("span", { class: "desc" }, "Погода временно недоступна"));
+    }
+  }
 
   // ---------------- панель тем ----------------
   function renderPills() {
@@ -419,6 +681,7 @@
       const on = !hidden.has(id);
       return el("button", {
         class: "pill" + (on ? " active" : ""), style: `--c:${t.color}`, "aria-pressed": String(on),
+        title: on ? "Скрыть тему" : "Показать тему",
         onclick: () => { on ? hidden.add(id) : hidden.delete(id); save(); renderPills(); reload(); },
       }, el("span", { class: "emo" }, t.emoji), t.name);
     });
@@ -444,7 +707,7 @@
       el("div", { class: "body" },
         el("div", { class: "meta" }, el("span", { class: "src" }, item.source || host(item.source_url)), el("span", {}, "·"), el("span", {}, timeAgo(item.created_at))),
         el("h3", { class: "title" }, item.title),
-        featured && item.summary ? el("p", { class: "lead" }, item.summary.slice(0, 300)) : null,
+        featured && item.summary ? el("p", { class: "lead" }, item.summary.slice(0, 320)) : null,
         b.length ? el("div", { class: "foot" }, ...b) : null));
   }
 
@@ -458,9 +721,10 @@
     }
     const total = data.sections.reduce((s, x) => s + x.items.length, 0);
     if (!total && !data.updated_at) {
+      const busy = data.refreshing || refreshing;
       return feed.replaceChildren(el("div", { class: "empty empty-big" }, el("div", { class: "emoji" }, "🫧"),
-        data.refreshing || refreshing ? "Собираем новости из источников — это займёт около минуты…" : "Лента пока пуста.",
-        data.refreshing || refreshing ? null : el("div", { style: "margin-top:14px" }, el("button", { class: "chip-btn primary", onclick: doRefresh }, "Собрать новости"))));
+        busy ? "Собираем новости из источников — это займёт около минуты…" : "Лента пока пуста.",
+        busy ? null : el("div", { style: "margin-top:14px" }, el("button", { class: "chip-btn primary", onclick: doRefresh }, "Собрать новости"))));
     }
     feed.replaceChildren(...data.sections.map((sec) => {
       const info = topicInfo(sec.topic);
@@ -469,11 +733,15 @@
       const head = el("div", { class: "section-head", style: `--c:${info.color}` },
         el("span", { class: "section-icon" }, info.emoji), el("h2", {}, info.name),
         el("span", { class: "count" }, n ? `${n} ${plural(n, ["новость", "новости", "новостей"])}` : ""));
+      // Главной делаем первую новость с картинкой (если она в топ-3), иначе — без главной.
+      let fi = -1;
+      if (n >= 5) { fi = sec.items.slice(0, 3).findIndex((it) => it.image_url); if (fi < 0) fi = 0; }
+      const items = fi > 0 ? [sec.items[fi], ...sec.items.filter((_, i) => i !== fi)] : sec.items;
       const body = n
-        ? el("div", { class: "grid" }, ...sec.items.map((it, i) => card(it, info, i === 0 && n >= 5)))
+        ? el("div", { class: "grid" }, ...items.map((it, i) => card(it, info, fi >= 0 && i === 0)))
         : el("div", { class: "empty" }, info.custom
           ? "По этим ключевым словам за последние сутки ничего не нашлось. Попробуйте добавить синонимы."
-          : "За последние сутки в этой теме пока тихо.");
+          : region === "kz" ? "В казахстанских источниках по этой теме за сутки пока ничего." : "За последние сутки в этой теме пока тихо.");
       return el("section", { class: "section" }, head, body);
     }).filter(Boolean));
   }
@@ -490,10 +758,9 @@
     const seq = ++loadSeq;
     const visible = visibleTopics();
     const params = new URLSearchParams({
-      topics: visible.join(","),
+      topics: visible.join(","), region,
       custom: JSON.stringify(custom.filter((c) => visible.includes(c.id)).map((c) => ({ id: c.id, keywords: c.keywords }))),
     });
-    if (lang === "ru") params.set("lang", "ru");
     const res = await fetch("/api/news?" + params);
     if (!res.ok) throw new Error(res.status);
     const data = await res.json();
@@ -514,9 +781,11 @@
       if (!feeds.length) { $("srcSummary").textContent = "Источники ещё не опрашивались"; return; }
       const ok = feeds.filter((f) => f.ok).length;
       $("srcSummary").textContent = `Источники: ответили ${ok} из ${feeds.length}` + (data.checked_at ? ` · ${timeAgo(data.checked_at)}` : "");
-      $("srcList").replaceChildren(...feeds.sort((a, b) => b.ok - a.ok || a.name.localeCompare(b.name)).map((f) =>
+      const order = { kz: 0, ru: 1, en: 2 };
+      $("srcList").replaceChildren(...feeds.sort((a, b) => b.ok - a.ok || (order[a.region] ?? 3) - (order[b.region] ?? 3) || a.name.localeCompare(b.name)).map((f) =>
         el("li", { title: f.error || f.url },
           el("span", { class: f.ok ? "ok" : "bad" }, f.ok ? "✓" : "✕"),
+          el("span", { class: "rg" }, (f.region || "ru").toUpperCase()),
           el("span", {}, f.name),
           el("small", {}, f.ok ? `${f.count} шт.` : (f.error || "ошибка")))));
     } catch (_) {}
@@ -574,7 +843,6 @@
     hero.className = "r-hero" + (item.image_url ? "" : " small");
     hero.replaceChildren(media(item, info));
   }
-
   function renderReaderBody(data, item) {
     const box = $("rContent");
     const tldr = (data && data.tldr) || [];
@@ -593,21 +861,17 @@
     }
     box.replaceChildren(...parts);
   }
-
   async function openReader(item, info) {
     setReaderHero(item, info);
     $("rMeta").replaceChildren(
-      el("span", { class: "badge", style: `background:color-mix(in srgb, ${info.color} 14%, white);color:${info.color}` }, `${info.emoji} ${info.name}`),
+      el("span", { class: "badge", style: `background:color-mix(in srgb, ${info.color} 18%, var(--card));color:${info.color}` }, `${info.emoji} ${info.name}`),
       el("span", { class: "src" }, item.source || host(item.source_url)), el("span", {}, "·"), el("span", {}, timeAgo(item.created_at)));
     $("rTitle").textContent = item.title;
     $("rContent").replaceChildren(el("div", { class: "tldr-box" }, el("h3", {}, "Коротко"),
       ...[94, 86, 90, 60].map((w) => el("div", { class: "skeleton", style: `height:14px;width:${w}%;margin-top:10px` }))));
-
     const also = item.also || [];
     $("rAlso").classList.toggle("hidden", !also.length);
-    $("rAlso").querySelector(".row").replaceChildren(...also.map((a) =>
-      el("a", { href: a.url, target: "_blank", rel: "noopener noreferrer" }, a.source + " ↗")));
-
+    $("rAlso").querySelector(".row").replaceChildren(...also.map((a) => el("a", { href: a.url, target: "_blank", rel: "noopener noreferrer" }, a.source + " ↗")));
     const actions = [el("a", { class: "btn btn-primary", href: item.source_url, target: "_blank", rel: "noopener noreferrer" }, "Читать оригинал ↗")];
     if (item.discussion_url) {
       const where = host(item.discussion_url).includes("ycombinator") ? " на Hacker News" : "";
@@ -630,54 +894,91 @@
   }
 
   // ---------------- каталог тем ----------------
+  function hint(text) {
+    $("tHint").textContent = text;
+    clearTimeout(hint.t);
+    if (text) hint.t = setTimeout(() => { $("tHint").textContent = ""; }, 3500);
+  }
+  function addTopic(id, node) {
+    if (myTopics.length >= maxTopics) {
+      hint(`На главной максимум ${maxTopics} тем — сначала уберите одну.`);
+      if (node) { node.classList.remove("shake"); void node.offsetWidth; node.classList.add("shake"); }
+      return false;
+    }
+    myTopics.push(id); hidden.delete(id);
+    return true;
+  }
   function renderTopicsModal() {
+    const counter = $("tCounter");
+    counter.textContent = `${myTopics.length} из ${maxTopics}`;
+    counter.classList.toggle("full", myTopics.length >= maxTopics);
     $("tGrid").replaceChildren(...Object.entries(catalog).map(([id, t]) => {
       const on = myTopics.includes(id);
-      return el("button", {
-        class: "tile" + (on ? " on" : ""), style: `--c:${t.color}`, "aria-pressed": String(on),
-        onclick: () => {
-          if (on) myTopics = myTopics.filter((x) => x !== id);
-          else { myTopics.push(id); hidden.delete(id); }
-          save(); renderTopicsModal(); renderPills(); reload();
-        },
-      }, el("span", { class: "ic" }, t.emoji), el("span", {}, el("b", {}, t.name), el("small", {}, t.description)),
-      el("span", { class: "st" }, on ? "✓" : "+"));
+      const tile = el("button", { class: "tile" + (on ? " on" : ""), style: `--c:${t.color}`, "aria-pressed": String(on) },
+        el("span", { class: "ic" }, t.emoji), el("span", {}, el("b", {}, t.name), el("small", {}, t.description)),
+        el("span", { class: "st" }, on ? "✓" : "+"));
+      tile.addEventListener("click", () => {
+        if (on) myTopics = myTopics.filter((x) => x !== id);
+        else if (!addTopic(id, tile)) return;
+        hint(""); save(); renderTopicsModal(); renderPills(); reload();
+      });
+      return tile;
     }));
-    $("myTopics").replaceChildren(...custom.map((c) => el("span", { title: c.keywords }, `${c.emoji} ${c.name}`,
-      el("button", { "aria-label": `Удалить тему ${c.name}`, onclick: () => {
+    $("myTopics").replaceChildren(...custom.map((c) => {
+      const on = myTopics.includes(c.id);
+      const chip = el("span", { class: "my-chip" + (on ? " on" : ""), style: `--c:${c.color}`, title: c.keywords });
+      const tg = el("button", { class: "tg", title: on ? "Убрать с главной" : "Показать на главной" }, `${c.emoji} ${c.name}`, on ? " ✓" : "");
+      tg.addEventListener("click", () => {
+        if (on) myTopics = myTopics.filter((x) => x !== c.id);
+        else if (!addTopic(c.id, chip)) return;
+        save(); renderTopicsModal(); renderPills(); reload();
+      });
+      const rm = el("button", { class: "rm", "aria-label": `Удалить тему ${c.name}` }, "×");
+      rm.addEventListener("click", () => {
         custom = custom.filter((x) => x.id !== c.id); myTopics = myTopics.filter((x) => x !== c.id);
         save(); renderTopicsModal(); renderPills(); reload();
-      } }, "×"))));
+      });
+      chip.append(tg, rm);
+      return chip;
+    }));
   }
-  function openTopics() { renderTopicsModal(); openModal("topicsModal"); }
+  function openTopics() { hint(""); renderTopicsModal(); openModal("topicsModal"); }
   $("customForm").addEventListener("submit", (e) => {
     e.preventDefault();
     const name = $("cName").value.trim(), keywords = $("cKeys").value.trim();
     if (!name || !keywords) return;
     const i = custom.length;
-    const c = { id: "c-" + Date.now().toString(36), name, keywords,
-      color: CUSTOM_COLORS[i % CUSTOM_COLORS.length], emoji: CUSTOM_EMOJI[i % CUSTOM_EMOJI.length] };
-    custom.push(c); myTopics.push(c.id);
+    const c = { id: "c-" + Date.now().toString(36), name, keywords, color: CUSTOM_COLORS[i % CUSTOM_COLORS.length], emoji: CUSTOM_EMOJI[i % CUSTOM_EMOJI.length] };
+    custom.push(c);
+    const added = addTopic(c.id);
+    if (!added) hint(`Тема «${name}» сохранена. На главной уже ${maxTopics} тем — уберите одну и нажмите на «${name}» ниже.`);
     $("cName").value = ""; $("cKeys").value = "";
     save(); renderTopicsModal(); renderPills(); reload();
   });
 
   // ---------------- старт ----------------
   async function init() {
-    renderHero(); renderLang(); skeleton();
+    renderTheme(); renderGreeting(); renderRegion(); skeleton();
+    tickClock(); setInterval(tickClock, 1000);
+    loadWeather(); setInterval(loadWeather, 15 * 60 * 1000);
+    setInterval(renderGreeting, 60 * 1000);
+    document.fonts && document.fonts.ready.then(renderRegion);
     try {
       const t = await (await fetch("/api/topics")).json();
       for (const x of t.topics) catalog[x.id] = x;
+      maxTopics = t.max || 7;
       const saved = store.get("topics", null);
-      myTopics = (saved || t.defaults).filter((id) => catalog[id] || custom.some((c) => c.id === id));
+      if (!saved || store.get("v", 1) < STATE_VERSION) { myTopics = [...t.defaults]; hidden = new Set(); }
+      else myTopics = saved.filter((id) => catalog[id] || custom.some((c) => c.id === id));
+      myTopics = myTopics.slice(0, maxTopics);
+      save();
       renderPills();
       const data = await load();
       if (!data.updated_at && !data.refreshing) doRefresh();
       loadSources();
     } catch (_) {
       $("status").textContent = "сервер недоступен";
-      $("feed").replaceChildren(el("div", { class: "empty empty-big" }, el("div", { class: "emoji" }, "🔌"),
-        "Не удалось связаться с сервером. Запущен ли run.py?"));
+      $("feed").replaceChildren(el("div", { class: "empty empty-big" }, el("div", { class: "emoji" }, "🔌"), "Не удалось связаться с сервером. Запущен ли run.py?"));
     }
   }
   init();

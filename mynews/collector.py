@@ -23,13 +23,13 @@ import logging
 import math
 import re
 import time
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import urljoin, urlsplit, urlunsplit
 
 import feedparser
 import httpx
 
 from . import config, db
-from .topics import TOPICS, all_feeds
+from .topics import REGIONS, TOPICS, all_feeds
 
 log = logging.getLogger("mynews.collector")
 
@@ -166,6 +166,7 @@ def parse_feed(content: bytes, feed: dict) -> list[Item]:
             "discussion_url": None,
             "source": feed["name"],
             "lang": detect_lang(title),
+            "region": feed.get("region", "ru"),
             "comments_count": int(comments) if comments.isdigit() else 0,
             "score": 0,
             "weight": float(feed.get("weight", 0)),
@@ -194,6 +195,7 @@ def parse_hn(payload: dict) -> list[Item]:
             "discussion_url": discussion,
             "source": "Hacker News",
             "lang": "en",
+            "region": "en",
             "comments_count": int(hit.get("num_comments") or 0),
             "score": int(hit.get("points") or 0),
             "weight": 0.0,
@@ -203,25 +205,64 @@ def parse_hn(payload: dict) -> list[Item]:
     return items
 
 
+ALT_RX = re.compile(r"""<link[^>]+type=["']application/(?:rss|atom)\+xml["'][^>]*>""", re.I)
+HREF_RX = re.compile(r"""href=["']([^"']+)["']""", re.I)
+
+
+def discover_feed_url(page: str, base: str) -> str | None:
+    """Ищет на HTML-странице ссылку на RSS/Atom (<link rel="alternate" ...>)."""
+    for m in ALT_RX.finditer(page):
+        tag = m.group(0)
+        if "comments" in tag.lower():
+            continue
+        href = HREF_RX.search(tag)
+        if href:
+            return urljoin(base, html.unescape(href.group(1)))
+    return None
+
+
+def _looks_like_html(content: bytes) -> bool:
+    head = content[:2000].lower()
+    return b"<html" in head or b"<!doctype html" in head
+
+
+async def _fetch_one(client: httpx.AsyncClient, url: str, feed: dict) -> tuple[list[Item], str]:
+    r = await client.get(url)
+    r.raise_for_status()
+    if _looks_like_html(r.content):
+        found = discover_feed_url(r.text[:300_000], str(r.url))
+        if not found:
+            raise ValueError("на странице не найдена RSS-лента")
+        url = found
+        r = await client.get(url)
+        r.raise_for_status()
+    items = await asyncio.to_thread(parse_feed, r.content, feed)
+    if not items:
+        raise ValueError("лента пуста или это не RSS")
+    return items, url
+
+
 async def fetch_feed(client: httpx.AsyncClient, feed: dict, sem: asyncio.Semaphore) -> tuple[list[Item], dict]:
-    status = {"name": feed["name"], "url": feed["url"], "topic": feed.get("topic"), "ok": False, "count": 0}
+    """Пробует адреса ленты по очереди, пока один не ответит."""
+    status = {"name": feed["name"], "url": feed["urls"][0], "topic": feed.get("topic"),
+              "region": feed.get("region", "ru"), "ok": False, "count": 0}
+    errors = []
     async with sem:
-        try:
-            r = await client.get(feed["url"])
-            r.raise_for_status()
-            items = await asyncio.to_thread(parse_feed, r.content, feed)
-            if not items:
-                raise ValueError("лента пуста или это не RSS")
-            status.update(ok=True, count=len(items))
-            return items, status
-        except Exception as e:  # noqa: BLE001
-            status["error"] = str(e).split("\n")[0][:200]
-            log.warning("Лента «%s» не ответила: %s", feed["name"], status["error"])
-            return [], status
+        for url in feed["urls"]:
+            try:
+                items, used = await _fetch_one(client, url, feed)
+                status.update(ok=True, count=len(items), url=used)
+                return items, status
+            except Exception as e:  # noqa: BLE001
+                errors.append(str(e).split("\n")[0][:160])
+    status["error"] = errors[-1] if errors else "нет адресов"
+    log.warning("Лента «%s» не ответила: %s", feed["name"], status["error"])
+    return [], status
 
 
 async def fetch_hn(client: httpx.AsyncClient) -> tuple[list[Item], dict]:
-    status = {"name": "Hacker News", "url": "https://news.ycombinator.com", "topic": None, "ok": False, "count": 0}
+    status = {"name": "Hacker News", "url": "https://news.ycombinator.com", "topic": None,
+              "region": "en", "ok": False, "count": 0}
     since = int(time.time() - config.WINDOW_HOURS * 3600)
     url = ("https://hn.algolia.com/api/v1/search?tags=story&hitsPerPage=300"
            f"&numericFilters=created_at_i>{since},points>{config.HN_MIN_POINTS}")
@@ -364,13 +405,15 @@ def custom_matcher(keywords: str) -> list[re.Pattern]:
     return compile_matcher([k for k in re.split(r"[,;\n]", keywords or "") if k.strip()])
 
 
-def build_sections(pool: list[dict], topic_ids: list[str], custom: list[dict], lang: str | None,
+def build_sections(pool: list[dict], topic_ids: list[str], custom: list[dict], region: str | None,
                    limit: int | None = None) -> list[dict]:
     """Разбивает пул на секции по темам пользователя; новость не повторяется."""
     limit = limit or config.PER_TOPIC_LIMIT
     now = time.time()
-    if lang == "ru":
-        pool = [p for p in pool if p.get("lang") == "ru"]
+    if region in REGIONS:
+        pool = [p for p in pool if p.get("region") == region]
+        if region == "kz":  # казахстанские СМИ — только материалы на русском
+            pool = [p for p in pool if p.get("lang") == "ru"]
     ranked = sorted(pool, key=lambda p: hotness(p, now), reverse=True)
     used: set[int] = set()
     custom_by_id = {str(c.get("id")): c for c in custom}
@@ -432,12 +475,15 @@ async def enrich_images(client: httpx.AsyncClient, items: list[Item]) -> None:
 
 
 def top_candidates(items: list[Item], per_topic: int) -> list[Item]:
+    """Верхние новости каждой темы в каждом регионе — им подтягиваем превью."""
     now = time.time()
     ranked = sorted(items, key=lambda p: hotness(p, now), reverse=True)
     picked: dict[int, Item] = {}
-    for tid in TOPICS:
-        for p in [p for p in ranked if tid in p["topics"]][:per_topic]:
-            picked[id(p)] = p
+    for region in REGIONS:
+        in_region = [p for p in ranked if p.get("region") == region]
+        for tid in TOPICS:
+            for p in [p for p in in_region if tid in p["topics"]][:per_topic]:
+                picked[id(p)] = p
     return list(picked.values())
 
 
@@ -467,7 +513,11 @@ def merge_pool(fresh: list[Item], existing: list[Item]) -> list[Item]:
             if prev and prev.get("image_url") is not None and not item.get("image_url"):
                 item["image_url"] = prev["image_url"]
             by_id[item["external_id"]] = item
-    return deduplicate([i for i in by_id.values() if i["topics"]])
+    # Дубли склеиваются внутри региона: в режиме KZ нужны свои, казахстанские источники.
+    out: list[Item] = []
+    for region in REGIONS:
+        out += deduplicate([i for i in by_id.values() if i["topics"] and i.get("region", "ru") == region])
+    return out
 
 
 def save_status(statuses: list[dict]) -> None:

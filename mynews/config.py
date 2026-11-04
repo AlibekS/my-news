@@ -49,3 +49,9 @@ USER_AGENT = _env(
     "Mozilla/5.0 (compatible; VolnaNewsReader/2.0; personal localhost RSS reader)",
 )
 HTTP_TIMEOUT = float(_env("HTTP_TIMEOUT", "15"))
+
+# Виджет погоды (Open-Meteo, без ключа).
+WEATHER_CITY = _env("WEATHER_CITY", "Астана")
+WEATHER_LAT = float(_env("WEATHER_LAT", "51.1694"))
+WEATHER_LON = float(_env("WEATHER_LON", "71.4491"))
+WEATHER_TZ = _env("WEATHER_TZ", "Asia/Almaty")

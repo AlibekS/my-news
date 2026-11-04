@@ -12,7 +12,7 @@ def item(url, title, topics=("ai",), lang=None, age_h=1, **kw):
         "external_id": collector.canonical_url(url), "topics": list(topics), "title": title,
         "summary": None, "image_url": None, "source_url": url, "discussion_url": None,
         "source": kw.pop("source", collector.canonical_url(url).split("/")[0]),
-        "lang": lang or collector.detect_lang(title), "comments_count": 0, "score": 0, "weight": 0.0,
+        "lang": lang or collector.detect_lang(title), "region": kw.pop("region", "ru"), "comments_count": 0, "score": 0, "weight": 0.0,
         "also": [], "created_at": NOW - int(age_h * 3600),
     }
     d.update(kw)
@@ -114,7 +114,7 @@ def test_build_sections():
     pool = [
         dict(item("https://a.ru/1", "Нейросеть рисует видеокарты", topics=["ai", "hardware"]), id=1),
         dict(item("https://a.ru/2", "Новая видеокарта Radeon", topics=["hardware"]), id=2),
-        dict(item("https://a.com/3", "New GPU from AMD", topics=["hardware"]), id=3),
+        dict(item("https://a.com/3", "New GPU from AMD", topics=["hardware"], region="en"), id=3),
         dict(item("https://a.ru/4", "Apple показала новый iPhone", topics=["gadgets"]), id=4),
     ]
     secs = collector.build_sections(pool, ["ai", "hardware", "c-1"], [{"id": "c-1", "keywords": "iphone, макбук"}], None)
@@ -124,6 +124,25 @@ def test_build_sections():
     assert ids["c-1"] == [4]
     ru = collector.build_sections(pool, ["hardware"], [], "ru")
     assert {i["id"] for i in ru[0]["items"]} == {1, 2}
+    en = collector.build_sections(pool, ["hardware"], [], "en")
+    assert [i["id"] for i in en[0]["items"]] == [3]
+
+
+def test_kz_region_only_russian_language():
+    pool = [
+        dict(item("https://tengrinews.kz/1", "Нацбанк Казахстана сохранил базовую ставку", topics=["economy"], region="kz"), id=1),
+        dict(item("https://kapital.kz/2", "Tenge exchange rate falls", topics=["economy"], region="kz"), id=2),
+        dict(item("https://rbc.ru/3", "ЦБ России снизил ключевую ставку", topics=["economy"]), id=3),
+    ]
+    kz = collector.build_sections(pool, ["economy"], [], "kz")
+    assert [i["id"] for i in kz[0]["items"]] == [1]
+
+
+def test_merge_pool_dedups_within_region_only():
+    ru = item("https://rbc.ru/1", "Токаев подписал закон о цифровом тенге и криптовалютах", topics=["economy"])
+    kz = item("https://tengrinews.kz/1", "Токаев подписал закон о цифровом тенге и криптовалютах", topics=["economy"], region="kz")
+    out = collector.merge_pool([ru, kz], [])
+    assert {o["region"] for o in out} == {"ru", "kz"}
 
 
 def test_summarize_russian():
@@ -161,3 +180,40 @@ def test_merge_pool_keeps_items_from_failed_feeds(tmp_path, monkeypatch):
     fresh = item("https://b.ru/new", "Свежая новость про видеокарты", topics=["hardware"])
     out = collector.merge_pool([fresh], [old, stale])
     assert {o["external_id"] for o in out} == {"a.ru/old", "b.ru/new"}
+
+
+def test_discover_feed_url():
+    page = '''<html><head>
+      <link rel="alternate" type="application/rss+xml" title="Комментарии" href="/comments/feed/">
+      <link rel="alternate" type="application/rss+xml" title="Новости" href="/feed/">
+    </head></html>'''
+    assert collector.discover_feed_url(page, "https://example.kz/") == "https://example.kz/feed/"
+
+
+def test_fetch_feed_tries_alternatives_and_discovers(monkeypatch):
+    import asyncio
+
+    import httpx
+
+    def handler(request: httpx.Request):
+        url = str(request.url)
+        if url == "https://site.kz/rss":
+            return httpx.Response(404)
+        if url == "https://site.kz/":
+            return httpx.Response(200, text='<!doctype html><html><head><link rel="alternate" '
+                                  'type="application/rss+xml" href="https://site.kz/news.xml"></head></html>',
+                                  headers={"content-type": "text/html"})
+        if url == "https://site.kz/news.xml":
+            return httpx.Response(200, content=RSS, headers={"content-type": "application/rss+xml"})
+        return httpx.Response(500)
+
+    feed = {"name": "Site", "urls": ["https://site.kz/rss", "https://site.kz/"], "mode": "classify",
+            "region": "kz", "topic": None, "weight": 0}
+
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            return await collector.fetch_feed(client, feed, asyncio.Semaphore(1))
+
+    items, status = asyncio.run(run())
+    assert status["ok"] and status["url"] == "https://site.kz/news.xml"
+    assert items and items[0]["region"] == "kz"
