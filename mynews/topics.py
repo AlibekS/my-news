@@ -162,7 +162,7 @@ TOPICS: dict[str, dict] = {
         ],
     },
     "movies": {
-        "name": "Кино и сериалы", "emoji": "🎬", "color": "#EC4899", "default": True,
+        "name": "Кино и сериалы", "short": "Кино", "emoji": "🎬", "color": "#EC4899", "default": True,
         "description": "Премьеры, трейлеры, стриминг",
         "keywords": [
             "фильм", "сериал", "кино", "трейлер фильм", "трейлер сериал", "режиссёр", "режиссер",
@@ -194,7 +194,7 @@ TOPICS: dict[str, dict] = {
         ],
     },
     "gadgets": {
-        "name": "Смартфоны и гаджеты", "emoji": "📱", "color": "#22C55E",
+        "name": "Смартфоны и гаджеты", "short": "Гаджеты", "emoji": "📱", "color": "#22C55E",
         "description": "Телефоны, носимая электроника",
         "keywords": [
             "смартфон", "iphone", "android", "galaxy", "xiaomi", "redmi", "pixel", "oneplus",
@@ -210,7 +210,7 @@ TOPICS: dict[str, dict] = {
         ],
     },
     "dev": {
-        "name": "Программирование", "emoji": "💻", "color": "#3B82F6",
+        "name": "Программирование", "short": "Разработка", "emoji": "💻", "color": "#3B82F6",
         "description": "Языки, фреймворки, open source",
         "keywords": [
             "программист", "python", "javascript", "typescript", "rust$", "golang", "kotlin",
@@ -223,7 +223,7 @@ TOPICS: dict[str, dict] = {
         ],
     },
     "security": {
-        "name": "Кибербезопасность", "emoji": "🛡️", "color": "#EF4444",
+        "name": "Кибербезопасность", "short": "Инфобез", "emoji": "🛡️", "color": "#EF4444",
         "description": "Уязвимости, утечки, взломы",
         "keywords": [
             "уязвимост", "хакер", "взлом", "утечк", "кибератак", "вымогател", "ransomware",
@@ -238,7 +238,7 @@ TOPICS: dict[str, dict] = {
         ],
     },
     "crypto": {
-        "name": "Криптовалюты", "emoji": "🪙", "color": "#EAB308",
+        "name": "Криптовалюты", "short": "Крипта", "emoji": "🪙", "color": "#EAB308",
         "description": "Биткоин, блокчейн, рынок",
         "keywords": [
             "биткоин", "bitcoin", "криптовалют", "крипторын", "криптобирж", "ethereum", "эфириум",
@@ -251,7 +251,7 @@ TOPICS: dict[str, dict] = {
         ],
     },
     "auto": {
-        "name": "Авто и электрокары", "emoji": "🚗", "color": "#0891B2",
+        "name": "Авто и электрокары", "short": "Авто", "emoji": "🚗", "color": "#0891B2",
         "description": "Электромобили, автопилоты",
         "keywords": [
             "электромобил", "электрокар", "автомобил", "автопилот", "беспилотн", "tesla",
@@ -308,7 +308,7 @@ FALLBACK_TOPIC = {"Kapital.kz": "economy", "Курсив": "economy", "Inbusines
                   "Vlast.kz": "politics"}
 
 DEFAULT_TOPICS = [k for k, t in TOPICS.items() if t.get("default")]
-MAX_TOPICS = 7
+MAX_TOPICS = 12
 
 
 def all_feeds() -> list[dict]:
@@ -324,7 +324,7 @@ def all_feeds() -> list[dict]:
 
 def catalog() -> list[dict]:
     return [
-        {"id": k, "name": t["name"], "emoji": t["emoji"], "color": t["color"],
+        {"id": k, "name": t["name"], "short": t.get("short", t["name"]), "emoji": t["emoji"], "color": t["color"],
          "default": bool(t.get("default")), "description": t.get("description", "")}
         for k, t in TOPICS.items()
     ]

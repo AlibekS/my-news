@@ -175,6 +175,11 @@
   /* На компьютере темы переносятся на новую строку — все видны, кнопка настройки всегда на месте.
      На телефоне — одна строка с прокруткой пальцем, кнопка настройки стоит первой. */
   .pills { display: flex; flex-wrap: wrap; gap: 10px; }
+  /* Много тем на широком экране — ровная сетка ровно в два ряда (кол-во колонок задаёт JS). */
+  @media (min-width: 901px) {
+    .pills.grid2 { display: grid; grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); }
+    .pills.grid2 .pill { width: 100%; padding-right: 12px; gap: 7px; font-size: 14px; }
+  }
   @media (max-width: 600px) {
     .pills { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding: 8px 16px 26px; margin: -8px -16px -18px;
       -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 40px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 40px), transparent); }
@@ -190,6 +195,21 @@
   .pill .emo { width: 29px; height: 29px; border-radius: 50%; display: grid; place-items: center; font-size: 15px; background: var(--soft); }
   .pill.active { color: #fff; border-color: transparent; background: var(--c); box-shadow: 0 6px 18px color-mix(in srgb, var(--c) 40%, transparent); }
   .pill.active .emo { background: rgba(255,255,255,.25); }
+  .pill { position: relative; min-width: 0; padding-right: 16px; cursor: pointer; user-select: none; }
+  .pill:focus-visible { outline: 3px solid rgba(14,165,233,.45); outline-offset: 2px; }
+  .pill .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  /* Крестик удаления: появляется при наведении на правый край кнопки */
+  .pill-x { position: absolute; top: 50%; right: 6px; width: 26px; height: 26px; margin-top: -13px; border-radius: 50%;
+    display: grid; place-items: center; font-size: 15px; font-weight: 700; line-height: 1;
+    color: var(--muted); background: var(--surface); box-shadow: -10px 0 12px 2px var(--surface);
+    opacity: 0; transform: scale(.6); transition: opacity .15s, transform .15s, background .15s, color .15s; }
+  .pill.active .pill-x { color: #fff; background: var(--c); box-shadow: -10px 0 12px 2px var(--c); }
+  .pill.x-near .pill-x, .pill-x:focus-visible { opacity: 1; transform: none; }
+  .pill-x:hover { background: #EF4444 !important; color: #fff !important; box-shadow: -10px 0 12px 2px var(--surface); }
+  .pill.active .pill-x:hover { box-shadow: -10px 0 12px 2px var(--c); }
+  @media (hover: none) { .pill-x { opacity: .75; transform: scale(.85); } .pill { padding-right: 36px; } }
+  .pill.leaving { animation: leave .22s ease forwards; }
+  @keyframes leave { to { opacity: 0; transform: scale(.85); } }
   .pill.add { padding: 0 16px 0 12px; gap: 6px; justify-content: center; color: var(--accent-ink); border: 1.5px dashed color-mix(in srgb, var(--accent-ink) 45%, transparent); background: transparent; }
   .pill.add b { font-size: 20px; font-weight: 600; line-height: 1; }
   .pill.add:hover { background: var(--surface); border-style: solid; }
@@ -619,7 +639,7 @@
     set(key, value) { try { localStorage.setItem("volna." + key, JSON.stringify(value)); } catch (_) {} },
   };
   const catalog = {};
-  let maxTopics = 7;
+  let maxTopics = 12;
   let myTopics = [];
   let hidden = new Set(store.get("hidden", []));
   let custom = store.get("custom", []);
@@ -860,19 +880,59 @@
   }
 
   // ---------------- панель тем ----------------
+  function removeTopic(id, node) {
+    const idx = myTopics.indexOf(id);
+    if (idx < 0) return;
+    const t = topicInfo(id);
+    const wasHidden = hidden.has(id);
+    const done = () => {
+      myTopics = myTopics.filter((x) => x !== id); hidden.delete(id);
+      save(); renderPills(); reload();
+      toast(`Тема «${t ? t.name : id}» убрана`, "Вернуть", () => {
+        if (myTopics.includes(id) || myTopics.length >= maxTopics) return;
+        myTopics.splice(Math.min(idx, myTopics.length), 0, id);
+        if (wasHidden) hidden.add(id);
+        save(); renderPills(); reload();
+      });
+    };
+    if (node) { node.classList.add("leaving"); setTimeout(done, 200); } else done();
+  }
+
   function renderPills() {
     const pills = myTopics.map((id) => {
       const t = topicInfo(id);
       if (!t) return null;
       const on = !hidden.has(id);
-      return el("button", {
-        class: "pill" + (on ? " active" : ""), style: `--c:${t.color}`, "aria-pressed": String(on),
-        title: on ? "Скрыть тему" : "Показать тему",
-        onclick: () => { on ? hidden.add(id) : hidden.delete(id); save(); renderPills(); reload(); },
-      }, el("span", { class: "emo" }, t.emoji), t.name);
-    });
+      const label = t.short || t.name;
+      const pill = el("div", {
+        class: "pill" + (on ? " active" : ""), style: `--c:${t.color}`, "aria-pressed": String(on), role: "button", tabindex: "0",
+        title: (on ? "Скрыть" : "Показать") + ` «${t.name}»`,
+      }, el("span", { class: "emo" }, t.emoji), el("span", { class: "nm" }, label));
+      const x = el("span", { class: "pill-x", role: "button", tabindex: "0", title: `Убрать тему «${t.name}»`, "aria-label": `Убрать тему ${t.name}` }, "×");
+      pill.append(x);
+      // Крестик проявляется, когда курсор у правого края кнопки.
+      pill.addEventListener("mousemove", (e) => {
+        const r = pill.getBoundingClientRect();
+        pill.classList.toggle("x-near", e.clientX > r.right - 44);
+      });
+      pill.addEventListener("mouseleave", () => pill.classList.remove("x-near"));
+      pill.addEventListener("click", (e) => {
+        if (e.target.closest(".pill-x")) { e.stopPropagation(); removeTopic(id, pill); return; }
+        on ? hidden.add(id) : hidden.delete(id); save(); renderPills(); reload();
+      });
+      pill.addEventListener("keydown", (e) => {
+        if ((e.key === "Enter" || e.key === " ") && e.target === pill) { e.preventDefault(); pill.click(); }
+        if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); removeTopic(id, pill); }
+      });
+      x.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); removeTopic(id, pill); } });
+      return pill;
+    }).filter(Boolean);
     pills.push(el("button", { class: "pill add", title: "Добавить, убрать или создать свою тему", onclick: openTopics }, el("b", {}, "+"), "Темы"));
-    $("pills").replaceChildren(...pills.filter(Boolean));
+    const nav = $("pills");
+    // Больше 7 кнопок — раскладываем ровно в два ряда.
+    nav.classList.toggle("grid2", pills.length > 7);
+    nav.style.setProperty("--cols", String(Math.ceil(pills.length / 2)));
+    nav.replaceChildren(...pills);
   }
 
   // ---------------- лента ----------------
@@ -1394,7 +1454,7 @@
     try {
       const t = await (await fetch("/api/topics")).json();
       for (const x of t.topics) catalog[x.id] = x;
-      maxTopics = t.max || 7;
+      maxTopics = t.max || 12;
       const saved = store.get("topics", null);
       if (!saved || store.get("v", 1) < STATE_VERSION) { myTopics = [...t.defaults]; hidden = new Set(); }
       else myTopics = saved.filter((id) => catalog[id] || custom.some((c) => c.id === id));
