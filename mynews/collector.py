@@ -413,8 +413,29 @@ def custom_matcher(keywords: str) -> list[re.Pattern]:
     return compile_matcher([k for k in re.split(r"[,;\n]", keywords or "") if k.strip()])
 
 
+def hide_sources(pool: list[dict], hidden: set[str]) -> list[dict]:
+    """Убирает новости скрытых источников.
+
+    Если о новости писали и другие сайты, карточка остаётся, но ведёт на первый
+    нескрытый источник из «Также пишут».
+    """
+    if not hidden:
+        return pool
+    out = []
+    for p in pool:
+        if p.get("source") not in hidden:
+            p["also"] = [a for a in (p.get("also") or []) if a.get("source") not in hidden]
+            out.append(p)
+            continue
+        alt = [a for a in (p.get("also") or []) if a.get("source") not in hidden]
+        if alt:
+            p = dict(p, source=alt[0]["source"], source_url=alt[0]["url"], also=alt[1:])
+            out.append(p)
+    return out
+
+
 def build_sections(pool: list[dict], topic_ids: list[str], custom: list[dict], region: str | None,
-                   limit: int | None = None) -> list[dict]:
+                   limit: int | None = None, hidden_sources: set[str] | None = None) -> list[dict]:
     """Раскладывает пул по темам пользователя; каждая новость показывается один раз.
 
     Новость попадает в свою самую подходящую тему из выбранных (а не в первую по
@@ -427,6 +448,7 @@ def build_sections(pool: list[dict], topic_ids: list[str], custom: list[dict], r
         pool = [p for p in pool if p.get("region") == region]
         if region == "kz":  # казахстанские СМИ — только материалы на русском
             pool = [p for p in pool if p.get("lang") == "ru"]
+    pool = hide_sources(pool, hidden_sources or set())
     for p in pool:
         p["hot"] = round(hotness(p, now), 2)
     ranked = sorted(pool, key=lambda p: p["hot"], reverse=True)

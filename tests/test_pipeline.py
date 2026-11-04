@@ -233,3 +233,16 @@ def test_fetch_feed_tries_alternatives_and_discovers(monkeypatch):
     items, status = asyncio.run(run())
     assert status["ok"] and status["url"] == "https://site.kz/news.xml"
     assert items and items[0]["region"] == "kz"
+
+
+def test_hidden_sources_fall_back_to_other_outlet():
+    a = dict(item("https://dtf.ru/1", "Новость про игры", topics=["games"], source="DTF",
+                  also=[{"source": "StopGame", "url": "https://stopgame.ru/1"}]), id=1)
+    b = dict(item("https://dtf.ru/2", "Другая новость", topics=["games"], source="DTF"), id=2)
+    c = dict(item("https://pg.ru/3", "Третья", topics=["games"], source="PlayGround",
+                  also=[{"source": "DTF", "url": "https://dtf.ru/3"}]), id=3)
+    secs = collector.build_sections([a, b, c], ["games"], [], None, hidden_sources={"DTF"})
+    got = {i["id"]: i for i in secs[0]["items"]}
+    assert set(got) == {1, 3}
+    assert got[1]["source"] == "StopGame" and got[1]["source_url"] == "https://stopgame.ru/1"
+    assert got[3]["also"] == []

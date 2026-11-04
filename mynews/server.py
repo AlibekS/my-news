@@ -56,14 +56,19 @@ def news(
     topics: str = Query(",".join(DEFAULT_TOPICS), description="ai,games,hardware,c-123"),
     custom: str = Query("[]", description='JSON: [{"id":"c-123","keywords":"apple, iphone"}]'),
     region: str = Query("ru", description="ru / en / kz"),
+    hide: str = Query("[]", description='JSON: скрытые источники, ["DTF", "iXBT"]'),
 ):
+    try:
+        hidden = {str(h) for h in json.loads(hide) if isinstance(h, str)}
+    except (ValueError, TypeError):
+        hidden = set()
     try:
         custom_list = [c for c in json.loads(custom) if isinstance(c, dict)][:20]
     except ValueError:
         custom_list = []
     topic_ids = [t for t in topics.split(",") if t][:30]
     since = int(time.time() - config.WINDOW_HOURS * 3600)
-    sections = collector.build_sections(db.pool(since), topic_ids, custom_list, region)
+    sections = collector.build_sections(db.pool(since), topic_ids, custom_list, region, hidden_sources=hidden)
     for s in sections:
         for item in s["items"]:
             item.pop("weight", None)

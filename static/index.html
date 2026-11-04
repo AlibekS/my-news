@@ -204,6 +204,71 @@
   }
   .card:hover { transform: translateY(-4px); box-shadow: var(--shadow-hover); }
   .card:focus-visible { outline: 3px solid rgba(14,165,233,.45); outline-offset: 2px; }
+  .card { cursor: pointer; position: relative; }
+
+  /* Прочитанные — приглушены, новые — с меткой */
+  .card.read { opacity: .58; filter: saturate(.7); }
+  .card.read:hover, .card.read:focus-visible { opacity: 1; filter: none; }
+  .badge.new { background: var(--grad); color: #fff; }
+  .meta .seen { color: var(--muted); }
+
+  /* Кнопка «сохранить» на карточке */
+  .save-btn { position: absolute; z-index: 3; top: 10px; right: 10px; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center;
+    background: var(--tag-bg); color: var(--ink); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    box-shadow: 0 2px 8px rgba(0,0,0,.12); opacity: 0; transform: scale(.9); transition: opacity .2s, transform .2s, color .2s; }
+  .card:hover .save-btn, .card:focus-within .save-btn, .save-btn.on { opacity: 1; transform: none; }
+  .save-btn:hover { transform: scale(1.08); }
+  .save-btn.on { color: #F59E0B; }
+  .save-btn.on svg { fill: currentColor; }
+  @media (hover: none) { .save-btn { opacity: 1; transform: none; } }
+  .pop { animation: pop .35s cubic-bezier(.3,1.6,.5,1); }
+  @keyframes pop { 40% { transform: scale(1.3); } }
+
+  /* Счётчик на кнопке «Сохранённые» */
+  .chip-btn .cnt { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9999px; font-size: 11px; font-weight: 800; display: grid; place-items: center; background: #F59E0B; color: #fff; }
+  .chip-btn.icon .cnt { position: absolute; top: -4px; right: -4px; }
+  .chip-btn.icon { position: relative; }
+
+  /* Статус: «отметить всё прочитанным» */
+  .status-link { color: var(--accent-ink); font-weight: 700; cursor: pointer; }
+  .status-link:hover { text-decoration: underline; }
+
+  /* Всплывающее уведомление */
+  .toast { position: fixed; left: 50%; bottom: 24px; z-index: 60; transform: translate(-50%, 20px); opacity: 0; pointer-events: none;
+    display: flex; align-items: center; gap: 14px; padding: 12px 14px 12px 18px; border-radius: 16px; max-width: calc(100vw - 32px);
+    background: #0B2545; color: #fff; font-size: 14px; font-weight: 600; box-shadow: 0 16px 40px rgba(0,0,0,.3);
+    transition: opacity .2s, transform .3s cubic-bezier(.3,.9,.3,1); }
+  :root[data-theme="dark"] .toast { background: #E7F0FF; color: #0B2545; }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
+  .toast button { color: #7CB8FF; font-weight: 800; white-space: nowrap; }
+  :root[data-theme="dark"] .toast button { color: #2563EB; }
+
+  /* Окно «Сохранённые» */
+  .s-list { margin-top: 18px; display: flex; flex-direction: column; gap: 10px; }
+  .s-row { display: flex; gap: 14px; align-items: center; padding: 10px; border-radius: 16px; border: 1px solid var(--line); background: var(--surface); cursor: pointer; transition: box-shadow .2s, transform .15s; }
+  .s-row:hover { box-shadow: var(--shadow); transform: translateY(-1px); }
+  .s-row .media { width: 112px; flex: none; border-radius: 12px; aspect-ratio: 16 / 10; }
+  .s-row .media .ph span { font-size: 26px; }
+  .s-row .txt { flex: 1; min-width: 0; }
+  .s-row .txt b { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 15px; line-height: 1.3; }
+  .s-row .rm { flex: none; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; color: var(--muted); }
+  .s-row .rm:hover { background: #FEE2E2; color: #DC2626; }
+  @media (max-width: 600px) { .s-row .media { width: 84px; } }
+
+  /* Окно чтения: вторичные действия */
+  .r-extra { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+  .ghost-btn { height: 36px; padding: 0 14px; border-radius: 9999px; display: inline-flex; align-items: center; gap: 7px; font-size: 13.5px; font-weight: 700;
+    color: var(--ink-2); background: var(--surface-2); border: 1px solid var(--line); transition: background .2s, color .2s; }
+  .ghost-btn:hover { background: var(--soft); color: var(--ink); }
+  .ghost-btn.on { color: #D97706; border-color: rgba(245, 158, 11, .4); background: rgba(245, 158, 11, .1); }
+  .ghost-btn.on svg { fill: currentColor; }
+  .ghost-btn.danger:hover { background: #FEE2E2; color: #DC2626; }
+
+  /* Подвал: скрыть/вернуть источник */
+  .src-list .tg { margin-left: auto; flex: none; font-size: 11.5px; font-weight: 700; color: var(--accent-ink); opacity: 0; transition: opacity .15s; }
+  .src-list li:hover .tg, .src-list li.off .tg { opacity: 1; }
+  .src-list li.off > span:not(.tg) { text-decoration: line-through; opacity: .6; }
+  @media (hover: none) { .src-list .tg { opacity: 1; } }
 
   /* Превью. Если картинка маленькая или другой формы — она вписывается целиком
      поверх размытой копии себя, а не растягивается. */
@@ -420,6 +485,9 @@
         <button data-region="en" role="radio" title="Англоязычные источники">EN</button>
         <button data-region="kz" role="radio" title="Источники Казахстана (на русском)">KZ</button>
       </div>
+      <button id="savedBtn" class="chip-btn icon" title="Сохранённые новости" aria-label="Сохранённые новости">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M6 3.5h12a1 1 0 0 1 1 1V21l-7-4.5L5 21V4.5a1 1 0 0 1 1-1z"/></svg>
+      </button>
       <button id="themeBtn" class="chip-btn icon" title="Сменить тему" aria-label="Сменить тему"></button>
       <button id="refreshBtn" class="chip-btn primary refresh" title="Обновить ленту">
         <svg id="refreshIcon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
@@ -488,6 +556,22 @@
   </article>
 </div>
 
+<!-- Сохранённые -->
+<div id="savedModal" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="sTitle">
+  <div class="modal t-modal">
+    <button class="close" data-close aria-label="Закрыть">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+    <div class="t-body">
+      <h2 id="sTitle">Сохранённые</h2>
+      <div class="t-sub">Новости, которые вы отложили на потом. Хранятся в этом браузере.</div>
+      <div class="s-list" id="sList"></div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span></div>
+
 <!-- Каталог тем -->
 <div id="topicsModal" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="tTitle">
   <div class="modal t-modal">
@@ -535,10 +619,46 @@
   if (!["ru", "en", "kz"].includes(region)) region = "ru";
   let lastData = null;
 
+  // Прочитанное, сохранённое, скрытые источники — всё в браузере пользователя.
+  const DAY = 86400;
+  const keyOf = (it) => it.source_url || String(it.id);
+  let readMap = store.get("read", {});
+  for (const k of Object.keys(readMap)) if (Date.now() / 1000 - readMap[k] > 7 * DAY) delete readMap[k];
+  let saved = store.get("saved", []);
+  let hiddenSources = new Set(store.get("hiddenSources", []));
+  // «Новое с прошлого визита»: граница запоминается на всю вкладку, чтобы
+  // перезагрузка страницы не сбрасывала метки.
+  let prevSeen = null;
+  try {
+    const s = sessionStorage.getItem("volna.prevSeen");
+    if (s !== null) prevSeen = s === "" ? null : Number(s);
+    else {
+      prevSeen = store.get("seenAt", null);
+      sessionStorage.setItem("volna.prevSeen", prevSeen == null ? "" : String(prevSeen));
+    }
+  } catch (_) {}
+  store.set("seenAt", Math.floor(Date.now() / 1000));
+  const isRead = (it) => !!readMap[keyOf(it)];
+  const isNew = (it) => prevSeen != null && it.created_at > prevSeen && !isRead(it);
+  const isSaved = (it) => saved.some((x) => x.key === keyOf(it));
+  function saveExtras() { store.set("read", readMap); store.set("saved", saved); store.set("hiddenSources", [...hiddenSources]); }
+
+  // ---------------- уведомление ----------------
+  let toastTimer;
+  function toast(text, action, onAction) {
+    const t = $("toast");
+    const kids = [el("span", {}, text)];
+    if (action) kids.push(el("button", { onclick: () => { t.classList.remove("show"); onAction(); } }, action));
+    t.replaceChildren(...kids);
+    t.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove("show"), 5000);
+  }
+
   function topicInfo(id) {
     if (catalog[id]) return catalog[id];
     const c = custom.find((x) => x.id === id);
-    return c ? { name: c.name, emoji: c.emoji, color: c.color, custom: true } : null;
+    return c ? { id: c.id, name: c.name, emoji: c.emoji, color: c.color, custom: true } : null;
   }
   function save() {
     store.set("topics", myTopics); store.set("hidden", [...hidden]); store.set("custom", custom);
@@ -756,17 +876,116 @@
     $("feed").replaceChildren(el("section", { class: "section" }, el("div", { class: "grid" }, ...Array.from({ length: 6 }, card))));
   }
 
+  const BOOKMARK = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M6 3.5h12a1 1 0 0 1 1 1V21l-7-4.5L5 21V4.5a1 1 0 0 1 1-1z"/></svg>';
+
   function card(item, info, featured) {
     const m = media(item, info);
     m.append(el("span", { class: "tag", style: `--c:${info.color}` }, el("i"), info.name));
     const b = badges(item);
-    return el("button", { class: "card" + (featured ? " featured" : ""), onclick: () => openReader(item, info) },
-      m,
+    if (isNew(item)) b.unshift(el("span", { class: "badge new" }, "● Новое"));
+    const save = el("button", { class: "save-btn" + (isSaved(item) ? " on" : ""), "aria-label": "Сохранить на потом", title: "Сохранить на потом" });
+    save.innerHTML = BOOKMARK;
+    save.addEventListener("click", (e) => { e.stopPropagation(); toggleSave(item, info); });
+    const node = el("article", {
+        class: "card" + (featured ? " featured" : "") + (isRead(item) ? " read" : ""),
+        tabindex: "0", role: "button", "data-key": keyOf(item), "aria-label": item.title,
+        onclick: () => openReader(item, info),
+        onkeydown: (e) => { if ((e.key === "Enter" || e.key === " ") && e.target === e.currentTarget) { e.preventDefault(); openReader(item, info); } },
+      },
+      m, save,
       el("div", { class: "body" },
-        el("div", { class: "meta" }, el("span", { class: "src" }, item.source || host(item.source_url)), el("span", {}, "·"), el("span", {}, timeAgo(item.created_at))),
+        el("div", { class: "meta" }, el("span", { class: "src" }, item.source || host(item.source_url)), el("span", {}, "·"),
+          el("span", {}, timeAgo(item.created_at)), isRead(item) ? el("span", { class: "seen" }, "· ✓ прочитано") : null),
         el("h3", { class: "title" }, item.title),
         featured && item.summary ? el("p", { class: "lead" }, item.summary.slice(0, 320)) : null,
         b.length ? el("div", { class: "foot" }, ...b) : null));
+    return node;
+  }
+
+  function cardsFor(item) { return [...document.querySelectorAll("#feed .card")].filter((c) => c.dataset.key === keyOf(item)); }
+
+  // ---------------- прочитанное ----------------
+  function markRead(item) {
+    if (isRead(item)) return;
+    readMap[keyOf(item)] = Math.floor(Date.now() / 1000);
+    saveExtras();
+    for (const c of cardsFor(item)) {
+      c.classList.add("read");
+      c.querySelector(".badge.new")?.remove();
+      const meta = c.querySelector(".meta");
+      if (meta && !meta.querySelector(".seen")) meta.append(el("span", { class: "seen" }, "· ✓ прочитано"));
+    }
+    if (lastData) updateStatus(lastData);
+  }
+  function allVisibleItems() { return lastData ? lastData.sections.flatMap((s) => s.items) : []; }
+  function markAllRead() {
+    const now = Math.floor(Date.now() / 1000);
+    for (const it of allVisibleItems()) readMap[keyOf(it)] = readMap[keyOf(it)] || now;
+    saveExtras();
+    renderFeed(lastData); updateStatus(lastData);
+    toast("Все новости отмечены прочитанными");
+  }
+
+  // ---------------- сохранённое ----------------
+  function toggleSave(item, info, opts = {}) {
+    const k = keyOf(item);
+    const was = isSaved(item);
+    if (was) saved = saved.filter((x) => x.key !== k);
+    else saved.unshift({ key: k, savedAt: Math.floor(Date.now() / 1000), topic: info.id || null,
+      info: { name: info.name, emoji: info.emoji, color: info.color }, item: { ...item } });
+    saveExtras();
+    renderSavedCount();
+    for (const c of cardsFor(item)) {
+      const btn = c.querySelector(".save-btn");
+      btn.classList.toggle("on", !was);
+      btn.classList.remove("pop"); void btn.offsetWidth; if (!was) btn.classList.add("pop");
+    }
+    if (opts.quiet) return;
+    if (!was) toast("Сохранено на потом", "Открыть", openSaved);
+    else toast("Убрано из сохранённых", "Вернуть", () => toggleSave(item, info, { quiet: true }));
+    if (!$("savedModal").classList.contains("hidden")) renderSaved();
+    if (!$("reader").classList.contains("hidden")) renderReaderExtra(item, info);
+  }
+  function renderSavedCount() {
+    const btn = $("savedBtn");
+    btn.querySelector(".cnt")?.remove();
+    if (saved.length) btn.append(el("span", { class: "cnt" }, String(saved.length)));
+  }
+  function renderSaved() {
+    const list = $("sList");
+    if (!saved.length) {
+      list.replaceChildren(el("div", { class: "empty" }, "Пока пусто. Нажмите на значок закладки на карточке или в окне новости, чтобы отложить её на потом."));
+      return;
+    }
+    list.replaceChildren(...saved.map((s) => {
+      const info = topicInfo(s.topic) || s.info;
+      const rm = el("button", { class: "rm", "aria-label": "Убрать из сохранённых", title: "Убрать" }, "×");
+      rm.addEventListener("click", (e) => { e.stopPropagation(); toggleSave(s.item, info); });
+      const row = el("div", { class: "s-row", tabindex: "0", role: "button" },
+        media(s.item, info),
+        el("div", { class: "txt" },
+          el("div", { class: "meta" }, el("span", { class: "src" }, s.item.source || host(s.item.source_url)), el("span", {}, "·"), el("span", {}, `сохранено ${timeAgo(s.savedAt)}`)),
+          el("b", {}, s.item.title)),
+        rm);
+      const open = () => { closeModal($("savedModal")); setTimeout(() => openReader(s.item, info), 120); };
+      row.addEventListener("click", open);
+      row.addEventListener("keydown", (e) => { if (e.key === "Enter") open(); });
+      return row;
+    }));
+  }
+  function openSaved() { renderSaved(); openModal("savedModal"); }
+  $("savedBtn").addEventListener("click", openSaved);
+
+  // ---------------- скрытые источники ----------------
+  function hideSource(name) {
+    hiddenSources.add(name); saveExtras();
+    closeModal($("reader"));
+    reload(); loadSources();
+    toast(`Новости «${name}» скрыты`, "Отменить", () => unhideSource(name));
+  }
+  function unhideSource(name) {
+    hiddenSources.delete(name); saveExtras();
+    reload(); loadSources();
   }
 
   function visibleTopics() { return myTopics.filter((id) => !hidden.has(id) && topicInfo(id)); }
@@ -908,10 +1127,17 @@
   }
 
   function updateStatus(data) {
-    const total = data.sections.reduce((s, x) => s + x.items.length, 0);
-    $("status").textContent = data.refreshing || refreshing ? "собираем свежие новости…"
-      : data.updated_at ? `обновлено ${timeAgo(data.updated_at)} · ${total} ${plural(total, ["новость", "новости", "новостей"])}`
-      : "ещё не обновлялось";
+    const items = data.sections.flatMap((s) => s.items);
+    const total = items.length;
+    const st = $("status");
+    if (data.refreshing || refreshing) return st.replaceChildren("собираем свежие новости…");
+    if (!data.updated_at) return st.replaceChildren("ещё не обновлялось");
+    const parts = [`обновлено ${timeAgo(data.updated_at)} · ${total} ${plural(total, ["новость", "новости", "новостей"])}`];
+    const fresh = items.filter(isNew).length;
+    if (fresh) parts.push(` · ${fresh} ${plural(fresh, ["новая", "новые", "новых"])} с прошлого визита`);
+    const unread = items.filter((it) => !isRead(it)).length;
+    if (unread && total) parts.push(" · ", el("span", { class: "status-link", role: "button", tabindex: "0", onclick: markAllRead }, "отметить всё прочитанным"));
+    st.replaceChildren(...parts);
   }
 
   let loadSeq = 0, pollTimer = null;
@@ -921,6 +1147,7 @@
     const params = new URLSearchParams({
       topics: visible.join(","), region,
       custom: JSON.stringify(custom.filter((c) => visible.includes(c.id)).map((c) => ({ id: c.id, keywords: c.keywords }))),
+      hide: JSON.stringify([...hiddenSources]),
     });
     const res = await fetch("/api/news?" + params);
     if (!res.ok) throw new Error(res.status);
@@ -941,14 +1168,23 @@
       const feeds = data.feeds || [];
       if (!feeds.length) { $("srcSummary").textContent = "Источники ещё не опрашивались"; return; }
       const ok = feeds.filter((f) => f.ok).length;
-      $("srcSummary").textContent = `Источники: ответили ${ok} из ${feeds.length}` + (data.checked_at ? ` · ${timeAgo(data.checked_at)}` : "");
+      $("srcSummary").textContent = `Источники: ответили ${ok} из ${feeds.length}` + (data.checked_at ? ` · ${timeAgo(data.checked_at)}` : "")
+        + (hiddenSources.size ? ` · скрыто ${hiddenSources.size}` : "");
       const order = { kz: 0, ru: 1, en: 2 };
-      $("srcList").replaceChildren(...feeds.sort((a, b) => b.ok - a.ok || (order[a.region] ?? 3) - (order[b.region] ?? 3) || a.name.localeCompare(b.name)).map((f) =>
-        el("li", { title: f.error || f.url },
+      const names = new Set(feeds.map((f) => f.name));
+      // Скрытые источники, которых нет в списке лент (например, переименованные), тоже можно вернуть.
+      const extra = [...hiddenSources].filter((n) => !names.has(n)).map((n) => ({ name: n, ok: true, count: 0, region: "", orphan: true }));
+      $("srcList").replaceChildren(...[...feeds, ...extra].sort((a, b) => b.ok - a.ok || (order[a.region] ?? 3) - (order[b.region] ?? 3) || a.name.localeCompare(b.name)).map((f) => {
+        const off = hiddenSources.has(f.name);
+        const tg = el("button", { class: "tg" }, off ? "вернуть" : "скрыть");
+        tg.addEventListener("click", () => (off ? unhideSource(f.name) : hideSource(f.name)));
+        return el("li", { class: off ? "off" : "", title: f.error || f.url || "" },
           el("span", { class: f.ok ? "ok" : "bad" }, f.ok ? "✓" : "✕"),
-          el("span", { class: "rg" }, (f.region || "ru").toUpperCase()),
+          f.region ? el("span", { class: "rg" }, f.region.toUpperCase()) : null,
           el("span", {}, f.name),
-          el("small", {}, f.ok ? `${f.count} шт.` : (f.error || "ошибка")))));
+          el("small", {}, off ? "скрыт" : f.orphan ? "" : f.ok ? `${f.count} шт.` : (f.error || "ошибка")),
+          tg);
+      }));
     } catch (_) {}
   }
 
@@ -1039,6 +1275,8 @@
       actions.push(el("a", { class: "btn btn-secondary", href: item.discussion_url, target: "_blank", rel: "noopener noreferrer" }, `💬 Обсуждение${where}`));
     }
     $("rActions").replaceChildren(...actions);
+    renderReaderExtra(item, info);
+    markRead(item);
 
     openModal("reader");
     const ov = $("reader");
@@ -1048,10 +1286,31 @@
       const data = res.ok ? await res.json() : null;
       if (ov.dataset.id !== String(item.id)) return;
       if (data && data.image_url && !item.image_url) { item.image_url = data.image_url; setReaderHero(item, info); }
-      renderReaderBody(data, item);
+      // Сохранённая новость помнит свою выжимку, даже когда пропадёт из ленты.
+      const snap = saved.find((x) => x.key === keyOf(item));
+      if (data && data.tldr && data.tldr.length && snap && !snap.tldr) { snap.tldr = data.tldr; saveExtras(); }
+      if (!data && snap && snap.tldr) renderReaderBody({ tldr: snap.tldr, content: "" }, item);
+      else renderReaderBody(data, item);
     } catch (_) {
       if (ov.dataset.id === String(item.id)) renderReaderBody(null, item);
     }
+  }
+
+  function renderReaderExtra(item, info) {
+    const on = isSaved(item);
+    const save = el("button", { class: "ghost-btn" + (on ? " on" : "") });
+    save.innerHTML = BOOKMARK;
+    save.append(on ? "Сохранено" : "Сохранить на потом");
+    save.addEventListener("click", () => toggleSave(item, info));
+    const kids = [save];
+    if (item.source) {
+      const hide = el("button", { class: "ghost-btn danger", title: "Новости этого сайта больше не будут показываться" }, `🚫 Скрыть «${item.source}»`);
+      hide.addEventListener("click", () => hideSource(item.source));
+      kids.push(hide);
+    }
+    let box = $("rExtra");
+    if (!box) { box = el("div", { class: "r-extra", id: "rExtra" }); $("rActions").after(box); }
+    box.replaceChildren(...kids);
   }
 
   // ---------------- каталог тем ----------------
@@ -1119,7 +1378,7 @@
 
   // ---------------- старт ----------------
   async function init() {
-    renderTheme(); renderGreeting(); renderRegion(); skeleton();
+    renderTheme(); renderGreeting(); renderRegion(); renderSavedCount(); skeleton();
     tickClock(); setInterval(tickClock, 1000);
     loadWeather(); setInterval(loadWeather, 15 * 60 * 1000);
     setInterval(renderGreeting, 60 * 1000);
