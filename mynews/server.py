@@ -10,7 +10,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse
 
-from . import collector, config, db, reader
+from . import collector, config, db, reader, search
 from .topics import DEFAULT_TOPICS, MAX_TOPICS, REGIONS, catalog
 
 log = logging.getLogger("mynews")
@@ -124,6 +124,27 @@ async def weather():
     except Exception as e:  # noqa: BLE001
         log.warning("Погода недоступна: %s", e)
         return _weather["data"] or {"ok": False, "city": config.WEATHER_CITY, "utc_offset": 5 * 3600}
+
+
+@app.get("/api/search")
+async def web_search(q: str = Query(..., min_length=1, max_length=200)):
+    """Поиск: совпадения в ленте + результаты из интернета (на русском)."""
+    data = await search.search(q)
+    for p in data["local"]:
+        p.pop("weight", None)
+    return data
+
+
+@app.get("/api/read")
+async def read(url: str = Query(..., min_length=8, max_length=2000)):
+    """Открыть любую статью из интернета в режиме чтения."""
+    try:
+        return await search.read_url(url)
+    except search.BadURL as e:
+        raise HTTPException(400, str(e)) from None
+    except Exception as e:  # noqa: BLE001
+        log.info("Не удалось прочитать %s: %s", url, e)
+        raise HTTPException(502, "Не удалось загрузить страницу") from None
 
 
 @app.get("/api/article/{article_id}")

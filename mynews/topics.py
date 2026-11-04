@@ -205,7 +205,8 @@ TOPICS: dict[str, dict] = {
         "feeds": [
             feed("4PDA", "https://4pda.to/feed/"),
             feed("Wylsacom", ["https://wylsa.com/feed/", "https://wylsa.com/"]),
-            feed("Rozetked", ["https://rozetked.me/rss", "https://rozetked.me/"]),
+            feed("Rozetked", ["https://rozetked.me/rss", "https://rozetked.me/rss.xml", "https://rozetked.me/feed",
+                              "https://rozetked.me/news/rss", "https://rozetked.me/"], mode="fallback"),
             feed("GSMArena", "https://www.gsmarena.com/rss-news-reviews.php3", region="en"),
         ],
     },

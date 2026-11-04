@@ -262,3 +262,45 @@ def test_summary_keeps_context_for_anaphora():
         if s.startswith("По его словам"):
             assert i > 0 and "Такиев" in out[i - 1]   # есть, о ком речь
     assert sum("Дефицит бюджета" in s for s in out) <= 1  # без повторов
+
+
+DDG_HTML = """
+<div class="result results_links results_links_deep result--ad"><h2 class="result__title">
+<a class="result__a" href="https://ad.example/">Реклама</a></h2></div>
+<div class="result results_links results_links_deep web-result "><div class="links_main">
+<h2 class="result__title"><a rel="nofollow" class="result__a"
+ href="//duckduckgo.com/l/?uddg=https%3A%2F%2Frozetked.me%2Farticles%2F123-obzor-iphone&amp;rut=abc">Обзор <b>iPhone 18 Pro</b> — Rozetked</a></h2>
+<a class="result__snippet" href="x">Подробный <b>обзор</b> нового смартфона.</a></div></div>
+<div class="result results_links web-result "><h2 class="result__title">
+<a class="result__a" href="https://www.ixbt.com/mobile/iphone-18-pro-review.html">iPhone 18 Pro: тест</a></h2>
+<a class="result__snippet" href="y">Тестируем камеру.</a></div>
+"""
+
+
+def test_parse_ddg():
+    from mynews import search
+    out = search.parse_ddg(DDG_HTML)
+    assert [r["url"] for r in out] == ["https://rozetked.me/articles/123-obzor-iphone",
+                                       "https://www.ixbt.com/mobile/iphone-18-pro-review.html"]
+    assert out[0]["title"] == "Обзор iPhone 18 Pro — Rozetked" and out[0]["snippet"] == "Подробный обзор нового смартфона."
+
+
+def test_parse_bing_and_rank():
+    from mynews import search
+    rss = b"""<?xml version="1.0"?><rss version="2.0"><channel><title>Bing</title>
+    <item><title>iPhone 18 Pro review</title><link>https://www.theverge.com/iphone-18</link><description>English</description></item>
+    <item><title>\xd0\x9e\xd0\xb1\xd0\xb7\xd0\xbe\xd1\x80 iPhone 18 Pro</title><link>https://rozetked.me/articles/123-obzor-iphone/</link><description>x</description></item>
+    </channel></rss>"""
+    bing = search.parse_bing_rss(rss)
+    merged = search.rank(search.parse_ddg(DDG_HTML) + bing)
+    urls = [r["url"] for r in merged]
+    assert urls.count("https://rozetked.me/articles/123-obzor-iphone") == 1     # дубль убран
+    assert merged[-1]["lang"] == "en" and merged[0]["source"] == "rozetked.me"  # русские выше
+
+
+def test_read_url_blocks_local_addresses():
+    import pytest as _p
+    from mynews import search
+    for bad in ["http://127.0.0.1:8000/", "file:///etc/passwd", "http://192.168.1.1/admin", "ftp://x"]:
+        with _p.raises(search.BadURL):
+            search.check_url(bad)
