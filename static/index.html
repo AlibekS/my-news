@@ -452,6 +452,10 @@
   .article p { font-size: 16px; line-height: 1.72; color: var(--ink); margin-bottom: 14px; opacity: .92; }
   .article p:first-child { font-weight: 600; opacity: 1; }
   .article .note { color: var(--muted); font-size: 14px; font-style: italic; }
+  .article figure { margin: 6px 0 20px; }
+  .article figure a { display: block; border-radius: 14px; overflow: hidden; background: var(--line); }
+  .article figure img { display: block; width: 100%; height: auto; max-height: 70vh; object-fit: contain; background: var(--card); }
+  .article figcaption { margin-top: 7px; font-size: 13.5px; line-height: 1.45; color: var(--muted); }
   .link-btn { margin-top: 12px; color: var(--accent-ink); font-weight: 700; font-size: 14px; }
   .also { margin-top: 18px; }
   .also h4 { margin-bottom: 8px; font-size: 13px; color: var(--muted); font-weight: 700; }
@@ -1158,7 +1162,7 @@
         info: { name: info.name, emoji: info.emoji, color: info.color }, item: { ...item } };
       // Если новость открыта — сохраняем и её текст: он останется, даже когда новость уйдёт из ленты.
       if (currentArticle && currentArticle.key === k && currentArticle.content) {
-        snap.content = currentArticle.content.slice(0, 12000); snap.tldr = currentArticle.tldr;
+        snap.content = currentArticle.content.slice(0, 16000); snap.tldr = currentArticle.tldr;
       }
       saved.unshift(snap);
     }
@@ -1488,12 +1492,29 @@
   }
   $("rSumBtn").addEventListener("click", () => setSummaryOpen(!$("rSummary").classList.contains("open")));
 
+  // Картинка внутри статьи приходит отдельной строкой: «![подпись](https://…)».
+  const IMG_LINE = /^!\[([^\]\n]*)\]\((https?:\/\/[^\s)]+)\)$/;
+  function articleBlock(p) {
+    const m = p.match(IMG_LINE);
+    if (!m) return el("p", {}, p);
+    const alt = m[1].trim(), src = m[2];
+    const fig = el("figure", {});
+    const img = el("img", { src, alt, loading: "lazy", decoding: "async", referrerpolicy: "no-referrer",
+      onerror: () => fig.remove(),                                  // сайт не отдал картинку — молча убираем
+      onload: () => { if (img.naturalWidth < 120 || img.naturalHeight < 60) fig.remove(); } });   // иконки и пиксели
+    fig.append(el("a", { href: src, target: "_blank", rel: "noopener noreferrer", title: "Открыть картинку целиком" }, img));
+    // Подпись показываем, только если это осмысленный текст, а не имя файла
+    if (alt.length > 3 && !/\.(jpe?g|png|webp|gif|avif)$/i.test(alt) && !/^(image|img|photo|фото)\s*\d*$/i.test(alt))
+      fig.append(el("figcaption", {}, alt));
+    return fig;
+  }
   function renderReaderBody(data, item) {
     const box = $("rContent");
     const tldr = (data && data.tldr) || [];
     const content = (data && data.content) || "";
     currentArticle = { key: keyOf(item), tldr, content };
-    const paras = content.split(/\n+/).map((p) => p.trim()).filter(Boolean);
+    const paras = content.split(/\n+/).map((p) => p.trim()).filter(Boolean)
+      .filter((p) => !p.startsWith("![") || IMG_LINE.test(p));   // обрезанная разметка картинки — не показываем
 
     // Краткое содержание — свёрнуто, раскрывается кнопкой «✨ Кратко» справа вверху.
     const canSum = tldr.length >= 2 && content.length > 500;
@@ -1502,7 +1523,7 @@
       el("div", { class: "tldr-box" }, el("h3", {}, "Краткое содержание"), el("ul", { class: "tldr" }, ...tldr.map((t) => el("li", {}, t))))));
 
     let article;
-    if (paras.length) article = el("div", { class: "article" }, ...paras.map((p) => el("p", {}, p)));
+    if (paras.some((p) => !IMG_LINE.test(p))) article = el("div", { class: "article" }, ...paras.map(articleBlock));
     else article = el("div", { class: "article" },
       item.summary ? el("p", {}, item.summary.slice(0, 1200)) : null,
       el("p", { class: "note" }, "Полный текст получить не удалось — откройте оригинал."));
@@ -1552,7 +1573,7 @@
       if (data && data.image_url && !item.image_url) { item.image_url = data.image_url; setReaderHero(item, info); }
       // Сохранённая новость помнит свою выжимку, даже когда пропадёт из ленты.
       const snap = saved.find((x) => x.key === keyOf(item));
-      if (data && data.content && snap && !snap.content) { snap.content = data.content.slice(0, 12000); snap.tldr = data.tldr; saveExtras(); }
+      if (data && data.content && snap && !snap.content) { snap.content = data.content.slice(0, 16000); snap.tldr = data.tldr; saveExtras(); }
       if (!data && snap && (snap.content || snap.tldr)) renderReaderBody({ tldr: snap.tldr || [], content: snap.content || "" }, item);
       else renderReaderBody(data, item);
     } catch (_) {

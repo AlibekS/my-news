@@ -304,3 +304,39 @@ def test_read_url_blocks_local_addresses():
     for bad in ["http://127.0.0.1:8000/", "file:///etc/passwd", "http://192.168.1.1/admin", "ftp://x"]:
         with _p.raises(search.BadURL):
             search.check_url(bad)
+
+
+def test_article_images_kept_and_cleaned():
+    raw = "\n".join([
+        "Первый абзац обзора видеокарты.",
+        "![Видеокарта сбоку](https://cdn.example.com/gpu.jpg?w=800)",
+        "![](https://cdn.example.com/gpu.jpg?w=1200)",          # повтор той же картинки
+        "![](https://example.com/static/logo.png)",             # логотип
+        "![](https://mc.yandex.ru/watch/123)",                  # счётчик
+        "![обложка](https://cdn.example.com/hero.jpg)",         # совпадает с обложкой
+        "![битая](https://cdn.exa",                             # обрезанная разметка
+        "Второй абзац с тестами в играх.",
+    ])
+    out = reader.clean_content(raw, hero="https://cdn.example.com/hero.jpg")
+    assert out.split("\n") == [
+        "Первый абзац обзора видеокарты.",
+        "![Видеокарта сбоку](https://cdn.example.com/gpu.jpg?w=800)",
+        "Второй абзац с тестами в играх.",
+    ]
+    # картинки не попадают в краткое содержание и не считаются текстом
+    assert reader.text_only(out) == "Первый абзац обзора видеокарты.\nВторой абзац с тестами в играх."
+    assert all("![" not in s for s in reader.split_sentences(out))
+
+
+def test_article_text_limit_ignores_images():
+    raw = "\n".join(["а" * 50, "![x](https://cdn.example.com/1.jpg)", "б" * 50, "![y](https://cdn.example.com/2.jpg)"])
+    out = reader.clean_content(raw, limit=80)
+    assert out.split("\n") == ["а" * 50, "![x](https://cdn.example.com/1.jpg)", "б" * 30]
+
+
+def test_extract_text_includes_images():
+    para = "Абзац о новой видеокарте и её производительности в современных играх. " * 6
+    html = (f"<html><body><article><h1>Обзор</h1><p>{para}</p>"
+            f"<figure><img src='/img/gpu.jpg' alt='Плата'></figure><p>{para}</p></article></body></html>")
+    out = reader.clean_content(reader.extract_text(html, "https://example.com/news/1"))
+    assert "![Плата](https://example.com/img/gpu.jpg)" in out.split("\n")

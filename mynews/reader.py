@@ -35,11 +35,67 @@ WORD_RX = re.compile(r"[\w'-]+", re.U)
 SENT_SPLIT_RX = re.compile(r"(?<=[.!?…])[\"”»)]?\s+(?=[\"“«(]?[A-ZА-ЯЁ0-9])")
 
 
+# Картинки внутри текста статьи хранятся отдельной строкой в виде «![подпись](https://…)».
+IMG_LINE_RX = re.compile(r"^!\[([^\]\n]{0,300})\]\((https?://[^\s)]+)\)$")
+# Счётчики, пиксели, логотипы, аватарки, иконки соцсетей — это не иллюстрации статьи.
+JUNK_IMG_RX = re.compile(
+    r"\.svg(?:$|\?)|(?:pixel|spacer|blank|1x1)\.(?:gif|png)|(?<![a-z])(?:logo|avatar|userpic|icon|favicon|emoji|"
+    r"sprite)s?(?![a-z])|gravatar\.com|doubleclick\.net|mc\.yandex|counter\.yadro|top-fwz|facebook\.com/tr",
+    re.I,
+)
+MAX_IMAGES = 12
+
+
+def is_image_line(line: str) -> bool:
+    return bool(IMG_LINE_RX.match(line.strip()))
+
+
+def text_only(content: str) -> str:
+    """Текст статьи без строк-картинок — для краткого содержания и подсчёта длины."""
+    return "\n".join(line for line in content.split("\n") if not is_image_line(line))
+
+
+def clean_content(raw: str, hero: str | None = None, limit: int = MAX_CONTENT_CHARS) -> str:
+    """Приводит вывод trafilatura к виду «абзацы + строки-картинки».
+
+    Оставляет только http(s)-картинки, убирает мусор (пиксели, логотипы), повторы и
+    картинку, совпадающую с обложкой (она и так показана сверху). Лимит длины
+    считается по тексту — картинки его не съедают.
+    """
+    out: list[str] = []
+    seen: set[str] = {hero.split("?")[0]} if hero else set()
+    images = chars = 0
+    for line in raw.split("\n"):
+        line = line.strip()
+        if not line:
+            continue
+        if line.startswith("!["):
+            m = IMG_LINE_RX.match(line)
+            if not m:
+                continue  # битая/неполная разметка картинки — пропускаем
+            alt, src = m.group(1).strip(), m.group(2)
+            key = src.split("?")[0]
+            if key in seen or JUNK_IMG_RX.search(src) or images >= MAX_IMAGES:
+                continue
+            seen.add(key)
+            images += 1
+            out.append(f"![{alt}]({src})")
+            continue
+        if chars >= limit:
+            break
+        line = line[: limit - chars]
+        chars += len(line)
+        out.append(line)
+    while out and is_image_line(out[-1]) and chars >= limit:
+        out.pop()  # картинки после обрезанного текста не нужны
+    return "\n".join(out)
+
+
 def split_sentences(text: str) -> list[str]:
     sentences = []
     for para in re.split(r"\n+", text):
         para = para.strip()
-        if para:
+        if para and not is_image_line(para):
             sentences += [s.strip() for s in SENT_SPLIT_RX.split(para) if s.strip()]
     return sentences
 
@@ -124,10 +180,16 @@ def summarize(text: str, title: str = "", n: int = 4) -> list[str]:
     return [sentences[i] for i in sorted(chosen)]
 
 
-def _extract(html_text: str, url: str) -> tuple[str, str | None]:
-    text = trafilatura.extract(
-        html_text, url=url, include_comments=False, include_tables=False, favor_precision=True
+def extract_text(html_text: str, url: str) -> str:
+    """Чистый текст статьи с картинками (строки «![подпись](url)»)."""
+    return trafilatura.extract(
+        html_text, url=url, include_comments=False, include_tables=False, include_images=True,
+        favor_precision=True,
     ) or ""
+
+
+def _extract(html_text: str, url: str) -> tuple[str, str | None]:
+    text = extract_text(html_text, url)
     image = None
     try:
         meta = trafilatura.extract_metadata(html_text, default_url=url)
@@ -151,7 +213,7 @@ async def get_article(news_id: int) -> dict | None:
         # Текст закэширован; краткое содержание пересчитываем (это быстро) —
         # так улучшения алгоритма сразу видны и на старых новостях.
         content = item["content"]
-        return {"id": news_id, "tldr": summarize(content, item["title"]), "content": content,
+        return {"id": news_id, "tldr": summarize(text_only(content), item["title"]), "content": content,
                 "image_url": item.get("image_url")}
 
     url = item.get("source_url") or ""
@@ -166,11 +228,12 @@ async def get_article(news_id: int) -> dict | None:
         except Exception as e:  # noqa: BLE001
             log.info("Не удалось загрузить %s: %s", url, e)
 
-    if len(text) < 200 and item.get("summary"):
-        text = _clean_reddit_markdown(item["summary"])
+    hero = item.get("image_url") or image
+    text = clean_content(text, hero)
+    if len(text_only(text)) < 200 and item.get("summary"):
+        text = _clean_reddit_markdown(item["summary"])[:MAX_CONTENT_CHARS]
 
-    text = text[:MAX_CONTENT_CHARS]
-    tldr = summarize(text, item["title"]) if text else []
+    tldr = summarize(text_only(text), item["title"]) if text else []
     if text:
         db.save_article(news_id, text, tldr, image)
     return {"id": news_id, "tldr": tldr, "content": text, "image_url": item.get("image_url") or image}

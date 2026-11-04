@@ -213,7 +213,7 @@ def check_url(url: str) -> str:
 
 
 def _extract_full(page: str, url: str) -> dict:
-    text = trafilatura.extract(page, url=url, include_comments=False, include_tables=False, favor_precision=True) or ""
+    text = reader.extract_text(page, url)
     meta = None
     try:
         meta = trafilatura.extract_metadata(page, default_url=url)
@@ -246,11 +246,11 @@ async def read_url(url: str) -> dict:
         if "html" not in r.headers.get("content-type", "html"):
             raise BadURL("Это не веб-страница")
         data = await asyncio.to_thread(_extract_full, r.text[:3_000_000], str(r.url))
-    content = data["content"][:reader.MAX_CONTENT_CHARS]
+    content = reader.clean_content(data["content"], data["image_url"])
     title = data["title"] or host_of(url)
     result = {
         "url": url, "title": title, "content": content,
-        "tldr": reader.summarize(content, title) if content else [],
+        "tldr": reader.summarize(reader.text_only(content), title) if content else [],
         "image_url": data["image_url"], "source": data["site"] or host_of(url),
         "created_at": data["created_at"],
     }
