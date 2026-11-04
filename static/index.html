@@ -541,9 +541,36 @@
 
     .modal { max-width: 760px; }
     .r-title { font-size: 28px; }
+    .reader-modal .r-title { font-size: 34px; }
     .tldr li, .article p { font-size: 17px; }
     .t-modal { max-width: 860px; }
     footer { font-size: 14px; }
+  }
+
+  /* ---------------- Окно чтения: почти на всю страницу ----------------
+     Текст — в колонке удобной для чтения ширины, справа закреплённая панель действий. */
+  .modal.reader-modal { max-width: min(1320px, calc(100vw - 48px)); }
+  .reader-modal .r-hero .media { aspect-ratio: auto; height: clamp(200px, 32vh, 360px); max-height: none; }
+  .reader-modal .r-hero.small .media { height: 120px; }
+  @media (min-width: 1000px) {
+    .overlay:has(.reader-modal) { padding: 20px; }
+    .modal.reader-modal { max-height: calc(100vh - 40px); }
+    .reader-modal .r-body { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 48px; padding: 30px 44px 40px; align-items: start; }
+    .reader-modal .r-main { max-width: 780px; }
+    .reader-modal .r-side { position: sticky; top: 24px; display: flex; flex-direction: column; gap: 4px; }
+    .reader-modal .actions { flex-direction: column; margin-top: 0; }
+    .reader-modal .actions .btn { flex: none; width: 100%; }
+    .reader-modal .r-extra { flex-direction: column; }
+    .reader-modal .r-extra .ghost-btn { width: 100%; justify-content: center; height: 42px; border-radius: 12px; }
+    .reader-modal .also { padding-top: 18px; margin-top: 14px; border-top: 1px solid var(--line); }
+    .reader-modal .r-title { font-size: 32px; line-height: 1.2; margin-top: 12px; }
+    .reader-modal .article p { font-size: 17.5px; line-height: 1.78; margin-bottom: 18px; }
+    .reader-modal .tldr li { font-size: 16.5px; }
+  }
+  @media (min-width: 1500px) {
+    .reader-modal .r-body { grid-template-columns: minmax(0, 1fr) 320px; gap: 64px; padding: 36px 56px 48px; }
+    .reader-modal .r-main { max-width: 820px; }
+    .reader-modal .article p { font-size: 18px; }
   }
 </style>
 </head>
@@ -630,20 +657,24 @@
 
 <!-- Режим чтения -->
 <div id="reader" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="rTitle">
-  <article class="modal">
+  <article class="modal reader-modal">
     <button class="close" data-close aria-label="Закрыть">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
     </button>
     <div class="r-hero" id="rHero"></div>
     <div class="r-body">
-      <div class="r-top">
-        <div class="meta" id="rMeta"></div>
-        <button class="sum-btn hidden" id="rSumBtn" aria-expanded="false" title="Показать краткое содержание новости">✨ Кратко</button>
+      <div class="r-main">
+        <div class="r-top">
+          <div class="meta" id="rMeta"></div>
+          <button class="sum-btn hidden" id="rSumBtn" aria-expanded="false" title="Показать краткое содержание новости">✨ Кратко</button>
+        </div>
+        <h2 class="r-title" id="rTitle"></h2>
+        <div id="rContent"></div>
       </div>
-      <h2 class="r-title" id="rTitle"></h2>
-      <div id="rContent"></div>
-      <div class="also hidden" id="rAlso"><h4>Также пишут</h4><div class="row"></div></div>
-      <div class="actions" id="rActions"></div>
+      <aside class="r-side">
+        <div class="actions" id="rActions"></div>
+        <div class="also hidden" id="rAlso"><h4>Также пишут</h4><div class="row"></div></div>
+      </aside>
     </div>
   </article>
 </div>
