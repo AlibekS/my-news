@@ -426,7 +426,7 @@
     background: var(--tag-bg); color: var(--ink); box-shadow: 0 2px 10px rgba(11,37,69,.15); transition: transform .15s; backdrop-filter: blur(8px); }
   .close:hover { transform: scale(1.06); }
   .r-hero { position: relative; width: 100%; background: var(--soft); overflow: hidden; }
-  .r-hero .media { aspect-ratio: 2 / 1; max-height: 360px; }
+  .r-hero .media { aspect-ratio: 2.4 / 1; max-height: 290px; }
   .r-hero.small .media { aspect-ratio: auto; height: 120px; }
   .r-body { padding: 22px 28px 28px; }
   @media (max-width: 600px) { .r-body { padding: 18px 20px 22px; } }
@@ -436,8 +436,22 @@
   .tldr li { position: relative; padding-left: 20px; line-height: 1.55; font-size: 15.5px; color: var(--ink); }
   .tldr li + li { margin-top: 8px; }
   .tldr li::before { content: ""; position: absolute; left: 3px; top: .6em; width: 8px; height: 8px; border-radius: 50%; background: var(--grad); }
-  .fulltext { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line); }
-  .fulltext p { font-size: 15.5px; line-height: 1.7; color: var(--ink-2); margin-bottom: 12px; }
+  /* Окно чтения: сначала текст статьи, краткое содержание — по кнопке */
+  .r-top { display: flex; align-items: center; gap: 10px; }
+  .r-top .meta { flex: 1; min-width: 0; }
+  .sum-btn { flex: none; height: 34px; padding: 0 14px; border-radius: 9999px; font-size: 13.5px; font-weight: 800;
+    color: var(--accent-ink); background: var(--soft); border: 1px solid color-mix(in srgb, var(--accent-ink) 25%, transparent);
+    transition: background .2s, color .2s, box-shadow .2s, transform .15s; }
+  .sum-btn:hover { box-shadow: var(--shadow); transform: translateY(-1px); }
+  .sum-btn.on { background: var(--grad); color: #fff; border-color: transparent; }
+  .summary { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows .3s ease, opacity .25s ease, margin .3s ease; margin-top: 0; }
+  .summary > div { overflow: hidden; }
+  .summary.open { grid-template-rows: 1fr; opacity: 1; margin-top: 18px; }
+  .summary .tldr-box { margin-top: 0; }
+  .article { margin-top: 18px; }
+  .article p { font-size: 16px; line-height: 1.72; color: var(--ink); margin-bottom: 14px; opacity: .92; }
+  .article p:first-child { font-weight: 600; opacity: 1; }
+  .article .note { color: var(--muted); font-size: 14px; font-style: italic; }
   .link-btn { margin-top: 12px; color: var(--accent-ink); font-weight: 700; font-size: 14px; }
   .also { margin-top: 18px; }
   .also h4 { margin-bottom: 8px; font-size: 13px; color: var(--muted); font-weight: 700; }
@@ -527,7 +541,7 @@
 
     .modal { max-width: 760px; }
     .r-title { font-size: 28px; }
-    .tldr li, .fulltext p { font-size: 16.5px; }
+    .tldr li, .article p { font-size: 17px; }
     .t-modal { max-width: 860px; }
     footer { font-size: 14px; }
   }
@@ -622,7 +636,10 @@
     </button>
     <div class="r-hero" id="rHero"></div>
     <div class="r-body">
-      <div class="meta" id="rMeta"></div>
+      <div class="r-top">
+        <div class="meta" id="rMeta"></div>
+        <button class="sum-btn hidden" id="rSumBtn" aria-expanded="false" title="Показать краткое содержание новости">✨ Кратко</button>
+      </div>
       <h2 class="r-title" id="rTitle"></h2>
       <div id="rContent"></div>
       <div class="also hidden" id="rAlso"><h4>Также пишут</h4><div class="row"></div></div>
@@ -1046,8 +1063,15 @@
     const k = keyOf(item);
     const was = isSaved(item);
     if (was) saved = saved.filter((x) => x.key !== k);
-    else saved.unshift({ key: k, savedAt: Math.floor(Date.now() / 1000), topic: info.id || null,
-      info: { name: info.name, emoji: info.emoji, color: info.color }, item: { ...item } });
+    else {
+      const snap = { key: k, savedAt: Math.floor(Date.now() / 1000), topic: info.id || null,
+        info: { name: info.name, emoji: info.emoji, color: info.color }, item: { ...item } };
+      // Если новость открыта — сохраняем и её текст: он останется, даже когда новость уйдёт из ленты.
+      if (currentArticle && currentArticle.key === k && currentArticle.content) {
+        snap.content = currentArticle.content.slice(0, 12000); snap.tldr = currentArticle.tldr;
+      }
+      saved.unshift(snap);
+    }
     saveExtras();
     renderSavedCount();
     for (const c of cardsFor(item)) {
@@ -1355,23 +1379,37 @@
     hero.className = "r-hero" + (item.image_url ? "" : " small");
     hero.replaceChildren(media(item, info));
   }
+  let currentArticle = null;   // текст открытой новости — для сохранения «на потом»
+  function setSummaryOpen(open) {
+    const sum = $("rSummary"), btn = $("rSumBtn");
+    if (!sum) return;
+    sum.classList.toggle("open", open);
+    btn.classList.toggle("on", open);
+    btn.setAttribute("aria-expanded", String(open));
+    btn.textContent = open ? "✕ Скрыть кратко" : "✨ Кратко";
+  }
+  $("rSumBtn").addEventListener("click", () => setSummaryOpen(!$("rSummary").classList.contains("open")));
+
   function renderReaderBody(data, item) {
     const box = $("rContent");
     const tldr = (data && data.tldr) || [];
     const content = (data && data.content) || "";
-    if (!tldr.length) {
-      box.replaceChildren(el("div", { class: "tldr-box" }, el("h3", {}, "Коротко"),
-        el("p", { style: "line-height:1.6;color:var(--ink-2)" }, item.summary ? item.summary.slice(0, 700) : "Не удалось извлечь текст статьи — откройте оригинал.")));
-      return;
-    }
-    const parts = [el("div", { class: "tldr-box" }, el("h3", {}, "Коротко"), el("ul", { class: "tldr" }, ...tldr.map((t) => el("li", {}, t))))];
-    if (content.length > tldr.join(" ").length + 300) {
-      const full = el("div", { class: "fulltext hidden" }, ...content.split(/\n+/).filter(Boolean).map((p) => el("p", {}, p)));
-      const toggle = el("button", { class: "link-btn" }, "Читать полностью ↓");
-      toggle.addEventListener("click", () => { const h = full.classList.toggle("hidden"); toggle.textContent = h ? "Читать полностью ↓" : "Свернуть ↑"; });
-      parts.push(toggle, full);
-    }
-    box.replaceChildren(...parts);
+    currentArticle = { key: keyOf(item), tldr, content };
+    const paras = content.split(/\n+/).map((p) => p.trim()).filter(Boolean);
+
+    // Краткое содержание — свёрнуто, раскрывается кнопкой «✨ Кратко» справа вверху.
+    const canSum = tldr.length >= 2 && content.length > 500;
+    $("rSumBtn").classList.toggle("hidden", !canSum);
+    const summary = el("div", { class: "summary", id: "rSummary" }, el("div", {},
+      el("div", { class: "tldr-box" }, el("h3", {}, "Краткое содержание"), el("ul", { class: "tldr" }, ...tldr.map((t) => el("li", {}, t))))));
+
+    let article;
+    if (paras.length) article = el("div", { class: "article" }, ...paras.map((p) => el("p", {}, p)));
+    else article = el("div", { class: "article" },
+      item.summary ? el("p", {}, item.summary.slice(0, 1200)) : null,
+      el("p", { class: "note" }, "Полный текст получить не удалось — откройте оригинал."));
+    box.replaceChildren(summary, article);
+    setSummaryOpen(false);
   }
   async function openReader(item, info) {
     setReaderHero(item, info);
@@ -1379,8 +1417,10 @@
       el("span", { class: "badge", style: `background:color-mix(in srgb, ${info.color} 18%, var(--card));color:${info.color}` }, `${info.emoji} ${info.name}`),
       el("span", { class: "src" }, item.source || host(item.source_url)), el("span", {}, "·"), el("span", {}, timeAgo(item.created_at)));
     $("rTitle").textContent = item.title;
-    $("rContent").replaceChildren(el("div", { class: "tldr-box" }, el("h3", {}, "Коротко"),
-      ...[94, 86, 90, 60].map((w) => el("div", { class: "skeleton", style: `height:14px;width:${w}%;margin-top:10px` }))));
+    $("rSumBtn").classList.add("hidden");
+    currentArticle = null;
+    $("rContent").replaceChildren(el("div", { class: "article" },
+      ...[96, 92, 98, 70, 0, 94, 97, 88, 60].map((w) => el("div", { class: "skeleton", style: `height:${w ? 15 : 8}px;width:${w}%;margin-top:12px;${w ? "" : "opacity:0"}` }))));
     const also = item.also || [];
     $("rAlso").classList.toggle("hidden", !also.length);
     $("rAlso").querySelector(".row").replaceChildren(...also.map((a) => el("a", { href: a.url, target: "_blank", rel: "noopener noreferrer" }, a.source + " ↗")));
@@ -1403,8 +1443,8 @@
       if (data && data.image_url && !item.image_url) { item.image_url = data.image_url; setReaderHero(item, info); }
       // Сохранённая новость помнит свою выжимку, даже когда пропадёт из ленты.
       const snap = saved.find((x) => x.key === keyOf(item));
-      if (data && data.tldr && data.tldr.length && snap && !snap.tldr) { snap.tldr = data.tldr; saveExtras(); }
-      if (!data && snap && snap.tldr) renderReaderBody({ tldr: snap.tldr, content: "" }, item);
+      if (data && data.content && snap && !snap.content) { snap.content = data.content.slice(0, 12000); snap.tldr = data.tldr; saveExtras(); }
+      if (!data && snap && (snap.content || snap.tldr)) renderReaderBody({ tldr: snap.tldr || [], content: snap.content || "" }, item);
       else renderReaderBody(data, item);
     } catch (_) {
       if (ov.dataset.id === String(item.id)) renderReaderBody(null, item);

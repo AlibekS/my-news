@@ -44,28 +44,44 @@ def split_sentences(text: str) -> list[str]:
     return sentences
 
 
+# Предложения, которые без предыдущего непонятны: «По его словам…», «Он отметил…», «Это…».
+ANAPHORA_RX = re.compile(
+    r"^[\"«(]*(?:по\s+(?:его|её|ее|их)\s+(?:словам|мнению|данным|оценке)|"
+    r"он|она|оно|они|его|её|ее|их|ему|ей|им|это|эти|этот|эта|этого|этой|этим|такой|такая|такие|таким|"
+    r"также|тоже|при\s+этом|кроме\s+того|помимо\s+этого|однако|но|а|и|поэтому|тем\s+не\s+менее|"
+    r"в\s+свою\s+очередь|впрочем|из\s+(?:этой|этого|этих|них)|в\s+том\s+числе|then|he|she|it|they|this|these|that|those|however|also|but|and|so)\b",
+    re.I,
+)
+
+
+def needs_context(sentence: str) -> bool:
+    return bool(ANAPHORA_RX.match(sentence.strip()))
+
+
 def summarize(text: str, title: str = "", n: int = 4) -> list[str]:
-    """Экстрактивный TL;DR: топ-n предложений в исходном порядке."""
+    """Экстрактивное краткое содержание: до n ключевых предложений в исходном порядке.
+
+    - предложение со ссылкой на предыдущее («По его словам…») берётся только вместе
+      с предыдущим, иначе пропускается — чтобы не было «чьим словам?»;
+    - почти повторяющие друг друга предложения не берутся дважды.
+    """
     sentences = split_sentences(text)
-    candidates = [
-        (i, s) for i, s in enumerate(sentences)
-        if 40 <= len(s) <= 400 and not s.endswith(":") and not s.lower().startswith(("image", "photo", "credit"))
-    ]
-    if len(candidates) <= n:
-        return [s for _, s in candidates] or sentences[:n]
+    ok = [40 <= len(s) <= 400 and not s.endswith(":") and not s.lower().startswith(("image", "photo", "credit", "фото"))
+          for s in sentences]
+    candidates = [(i, s) for i, s in enumerate(sentences) if ok[i]]
+    if not candidates:
+        return sentences[:n]
 
     def words(s: str) -> list[str]:
         # грубый стемминг (первые 6 букв), чтобы «видеокарта/видеокарту» считались одним словом
         return [w.lower().replace("ё", "е")[:6] for w in WORD_RX.findall(s) if w.lower() not in STOP and len(w) > 2]
 
     freq = Counter(w for _, s in candidates for w in words(s))
-    if not freq:
-        return [s for _, s in candidates[:n]]
-    top = max(freq.values())
+    top = max(freq.values()) if freq else 1
     title_words = set(words(title))
     total = len(sentences)
 
-    scored = []
+    scores: dict[int, float] = {}
     for i, s in candidates:
         ws = words(s)
         if not ws:
@@ -73,9 +89,39 @@ def summarize(text: str, title: str = "", n: int = 4) -> list[str]:
         score = sum(freq[w] / top for w in ws) / math.sqrt(len(ws))
         score += 0.3 * len(title_words & set(ws))
         score *= 1.25 if i < max(3, total * 0.15) else 1.0  # лид статьи важнее
-        scored.append((score, i, s))
-    best = sorted(scored, reverse=True)[:n]
-    return [s for _, _, s in sorted(best, key=lambda t: t[1])]
+        if needs_context(s):
+            score *= 0.6
+        scores[i] = score
+
+    chosen: list[int] = []
+    chosen_words: list[set] = []
+
+    def similar(ws: set) -> bool:
+        return any(len(ws & c) / max(1, len(ws | c)) > 0.5 for c in chosen_words)
+
+    def add(i: int) -> bool:
+        ws = set(words(sentences[i]))
+        if i in chosen or similar(ws):
+            return False
+        chosen.append(i)
+        chosen_words.append(ws)
+        return True
+
+    for i in sorted(scores, key=lambda k: -scores[k]):
+        if len(chosen) >= n:
+            break
+        if i in chosen:
+            continue
+        if needs_context(sentences[i]) and (i - 1) not in chosen:
+            prev = i - 1
+            # берём вместе с предыдущим предложением, если оно нормальное и есть место
+            if prev >= 0 and ok[prev] and not needs_context(sentences[prev]) and len(chosen) + 2 <= n \
+                    and not similar(set(words(sentences[prev]))):
+                add(prev)
+                add(i)
+            continue
+        add(i)
+    return [sentences[i] for i in sorted(chosen)]
 
 
 def _extract(html_text: str, url: str) -> tuple[str, str | None]:
@@ -101,8 +147,11 @@ async def get_article(news_id: int) -> dict | None:
     item = db.get(news_id)
     if not item:
         return None
-    if item.get("tldr"):
-        return {"id": news_id, "tldr": json.loads(item["tldr"]), "content": item.get("content") or "",
+    if item.get("content"):
+        # Текст закэширован; краткое содержание пересчитываем (это быстро) —
+        # так улучшения алгоритма сразу видны и на старых новостях.
+        content = item["content"]
+        return {"id": news_id, "tldr": summarize(content, item["title"]), "content": content,
                 "image_url": item.get("image_url")}
 
     url = item.get("source_url") or ""
