@@ -143,6 +143,26 @@
     .chip-btn.home { width: 38px; padding: 0; }
     .chip-btn.refresh { width: 38px; padding: 0; }
   }
+  /* Планшет: подписи «Домой» / «Обновить» и Ctrl K не помещаются рядом с полем поиска. */
+  @media (max-width: 900px) {
+    .chip-btn.home .lbl, .chip-btn.refresh .lbl, .search-pill kbd { display: none; }
+    .chip-btn.home, .chip-btn.refresh { width: 38px; padding: 0; }
+  }
+  /* Телефон: шапка в одну строку без наложений. «Домой» дублирует логотип — прячем. */
+  @media (max-width: 600px) {
+    .chip-btn.home { display: none; }
+    .logo { margin-right: 0; }
+    .head-right { gap: 6px; }
+    .seg button { min-width: 40px; padding: 0 8px; }
+  }
+  @media (max-width: 380px) {
+    .header .wrap { gap: 4px; }
+    .head-right { gap: 4px; }
+    .chip-btn.icon, .chip-btn.refresh, .header .search-pill { width: 36px; height: 36px; }
+    .seg button { min-width: 36px; padding: 0 6px; }
+  }
+  /* Совсем узкие экраны (320 px): тема и так берётся из настроек телефона. */
+  @media (max-width: 340px) { #themeBtn { display: none; } }
 
   /* ---------------- Hero + виджет ---------------- */
   .hero { padding: 36px 0 8px; display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 28px; align-items: center; }
