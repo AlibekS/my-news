@@ -794,6 +794,125 @@
     get(key, fallback) { try { const v = JSON.parse(localStorage.getItem("volna." + key)); return v ?? fallback; } catch (_) { return fallback; } },
     set(key, value) { try { localStorage.setItem("volna." + key, JSON.stringify(value)); } catch (_) {} },
   };
+  // ---------------- API: сервер (python run.py) или статические файлы (GitHub Pages) ----------------
+  // На GitHub Pages сервера нет: новости собирает GitHub Actions раз в час и кладёт
+  // в data/*.json, а темы по ним раскладывает браузер — тем же алгоритмом, что и сервер.
+  const STATIC = !!window.VOLNA_STATIC;
+  const api = STATIC ? staticApi : (url, opts) => fetch(url, opts);
+  const reply = (data, ok = true) => ({ ok, status: ok ? 200 : 404, json: async () => data });
+  let staticStamp = 0;            // ≠0 — только что нажали «Обновить»: в обход кэша
+  let staticPools = {};
+  let staticTopics = new Set();
+  async function staticJson(path) {
+    const t = staticStamp || Math.floor(Date.now() / 300000);   // кэш браузера — до 5 минут
+    const res = await fetch(`data/${path}?t=${t}`);
+    if (!res.ok) throw new Error(res.status);
+    return res.json();
+  }
+  function regionData(rg) {
+    if (!staticPools[rg]) staticPools[rg] = staticJson(`news-${rg}.json`).catch((e) => { delete staticPools[rg]; throw e; });
+    return staticPools[rg];
+  }
+  function hotness(p, now) {
+    const ageH = Math.max(0, (now - p.created_at) / 3600);
+    return 3 * Math.exp(-ageH / 12) + 2.5 * (p.also || []).length
+      + 1.2 * Math.log10(1 + (p.comments_count || 0)) + 0.8 * Math.log10(1 + (p.score || 0)) + (p.weight || 0);
+  }
+  // Свои темы: та же логика ключевых слов, что в collector.custom_matcher.
+  function keywordMatcher(keywords) {
+    const W = "[\\p{L}\\p{N}_]";
+    const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const kws = String(keywords || "").split(/[,;\n]/).map((k) => k.trim().toLowerCase()).filter(Boolean);
+    if (!kws.length) return null;
+    const parts = kws.map((k) => `(?<!${W})` + k.split(/\s+/)
+      .map((w) => (w.endsWith("$") ? esc(w.slice(0, -1)) + `(?!${W})` : esc(w) + `${W}*`)).join("\\s+"));
+    try { return new RegExp(parts.join("|"), "iu"); } catch (_) { return null; }
+  }
+  // Порт collector.build_sections: каждая новость — в одной, самой подходящей теме.
+  function buildSections(pool, topicIds, customList, hiddenSet, limit) {
+    const now = Date.now() / 1000;
+    let items = pool.map((p) => ({ ...p, also: [...(p.also || [])] }));
+    if (hiddenSet.size) items = items.flatMap((p) => {
+      const alt = p.also.filter((a) => !hiddenSet.has(a.source));
+      if (!hiddenSet.has(p.source)) return [{ ...p, also: alt }];
+      return alt.length ? [{ ...p, source: alt[0].source, source_url: alt[0].url, also: alt.slice(1) }] : [];
+    });
+    for (const p of items) p.hot = Math.round(hotness(p, now) * 100) / 100;
+    items.sort((a, b) => b.hot - a.hot);
+    const byId = new Map(customList.map((c) => [String(c.id), c]));
+    const pats = new Map(topicIds.filter((t) => byId.has(t)).map((t) => [t, keywordMatcher(byId.get(t).keywords)]));
+    const buckets = new Map(topicIds.filter((t) => staticTopics.has(t) || pats.has(t)).map((t) => [t, []]));
+    for (const p of items) {
+      const text = p.title + " " + (p.summary || "").slice(0, 500);
+      let target = null;
+      for (const [tid, rx] of pats) if (rx && rx.test(text)) { target = tid; break; }
+      if (target === null) target = (p.topics || []).find((t) => buckets.has(t) && staticTopics.has(t)) ?? null;
+      if (target !== null && buckets.get(target).length < limit) buckets.get(target).push(p);
+    }
+    return [...buckets].map(([topic, its]) => ({ topic, items: its }));
+  }
+  const SEARCH_STOP = new Set("the and for with from this that what about after into than more how why это как что для все уже или его был была были будет может также теперь".split(" "));
+  function searchLocal(q, pool) {
+    const terms = [...new Set((q.toLowerCase().replace(/ё/g, "е").match(/[a-zа-я0-9]+(?:[.\-][a-zа-я0-9]+)*/g) || [])
+      .filter((t) => !SEARCH_STOP.has(t) && (t.length >= 3 || /^\d+$/.test(t))).map((t) => t.slice(0, 5)))];
+    if (!terms.length) return [];
+    const now = Date.now() / 1000, found = [];
+    for (const p of pool) {
+      const text = (p.title + " " + (p.summary || "").slice(0, 600)).toLowerCase().replace(/ё/g, "е");
+      const hits = terms.filter((t) => text.includes(t)).length;
+      if (hits === terms.length || (terms.length >= 3 && hits >= terms.length - 1)) found.push([hits, hotness(p, now), p]);
+    }
+    found.sort((a, b) => b[0] - a[0] || b[1] - a[1]);
+    return found.slice(0, 10).map((x) => x[2]);
+  }
+  async function staticWeather() {
+    const w = (await staticJson("meta.json")).weather || { city: "Астана", lat: 51.1694, lon: 71.4491, tz: "Asia/Almaty" };
+    const fail = { ok: false, city: w.city, utc_offset: 5 * 3600 };
+    try {
+      const res = await fetch("https://api.open-meteo.com/v1/forecast"
+        + `?latitude=${w.lat}&longitude=${w.lon}`
+        + "&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m,relative_humidity_2m,is_day"
+        + `&daily=temperature_2m_max,temperature_2m_min&forecast_days=1&wind_speed_unit=ms&timezone=${encodeURIComponent(w.tz)}`);
+      if (!res.ok) return fail;
+      const j = await res.json(), cur = j.current, daily = j.daily || {};
+      return { ok: true, city: w.city, temp: cur.temperature_2m, feels: cur.apparent_temperature, code: cur.weather_code,
+        is_day: !!cur.is_day, wind: cur.wind_speed_10m, humidity: cur.relative_humidity_2m,
+        tmax: (daily.temperature_2m_max || [null])[0], tmin: (daily.temperature_2m_min || [null])[0],
+        utc_offset: j.utc_offset_seconds ?? 5 * 3600 };
+    } catch (_) { return fail; }
+  }
+  async function staticApi(url) {
+    const [path, qs] = url.replace(/^\/api\//, "").split("?");
+    const params = new URLSearchParams(qs || "");
+    const parse = (s) => { try { const v = JSON.parse(s || "[]"); return Array.isArray(v) ? v : []; } catch (_) { return []; } };
+    if (path === "topics") {
+      const t = await staticJson("topics.json");
+      staticTopics = new Set(t.topics.map((x) => x.id));
+      return reply(t);
+    }
+    if (path === "news") {
+      const data = await regionData(params.get("region") || "ru");
+      const topicIds = (params.get("topics") || "").split(",").filter(Boolean);
+      const sections = buildSections(data.items, topicIds, parse(params.get("custom")),
+        new Set(parse(params.get("hide")).map(String)), data.per_topic || 9);
+      return reply({ sections, updated_at: data.updated_at, refreshing: false });
+    }
+    if (path === "sources") return reply(await staticJson("sources.json"));
+    if (path === "weather") return reply(await staticWeather());
+    if (path === "refresh") {
+      staticStamp = Date.now(); staticPools = {};
+      return reply({ ok: true });
+    }
+    if (path === "search") {
+      const q = params.get("q") || "";
+      const pools = await Promise.all(Object.keys(REGION_LABEL).map((rg) => regionData(rg).then((d) => d.items, () => [])));
+      return reply({ query: q, local: searchLocal(q, pools.flat()), web: [], engine: null, errors: [] });
+    }
+    const m = path.match(/^article\/(\d+)$/);
+    if (m) { try { return reply(await staticJson(`a/${m[1]}.json`)); } catch (_) { return reply(null, false); } }
+    return reply(null, false);   // /api/read и прочее, чему нужен сервер
+  }
+
   const catalog = {};
   let maxTopics = 12;
   let myTopics = [];
@@ -1017,7 +1136,7 @@
   }
   async function loadWeather() {
     try {
-      const w = await (await fetch("/api/weather")).json();
+      const w = await (await api("/api/weather")).json();
       if (w.utc_offset != null) utcOffset = w.utc_offset;
       $("wCity").textContent = w.city || "Астана";
       tickClock();
@@ -1380,7 +1499,7 @@
       custom: JSON.stringify(custom.filter((c) => visible.includes(c.id)).map((c) => ({ id: c.id, keywords: c.keywords }))),
       hide: JSON.stringify([...hiddenSources]),
     });
-    const res = await fetch("/api/news?" + params);
+    const res = await api("/api/news?" + params);
     if (!res.ok) throw new Error(res.status);
     const data = await res.json();
     if (seq !== loadSeq) return data;
@@ -1395,7 +1514,7 @@
 
   async function loadSources() {
     try {
-      const data = await (await fetch("/api/sources")).json();
+      const data = await (await api("/api/sources")).json();
       const feeds = data.feeds || [];
       if (!feeds.length) { $("srcSummary").textContent = "Источники ещё не опрашивались"; return; }
       const ok = feeds.filter((f) => f.ok).length;
@@ -1428,10 +1547,13 @@
     $("status").textContent = "собираем свежие новости…";
     if (!lastData || !lastData.sections.some((s) => s.items.length)) skeleton();
     try {
-      const stats = await (await fetch("/api/refresh", { method: "POST" })).json();
+      const stats = await (await api("/api/refresh", { method: "POST" })).json();
       refreshing = false;
-      await load();
+      const before = lastData && lastData.updated_at;
+      const data = await load();
       if (!stats.ok) $("status").textContent = "источники не ответили — проверьте интернет";
+      else if (STATIC && data && data.updated_at && data.updated_at === before)
+        $("status").replaceChildren(`обновлено ${timeAgo(data.updated_at)} · новости собираются автоматически раз в час`);
     } catch (_) {
       $("status").textContent = "не удалось обновить";
     } finally {
@@ -1440,6 +1562,17 @@
     }
   }
   $("refreshBtn").addEventListener("click", doRefresh);
+  if (STATIC) $("refreshBtn").title = "Проверить, нет ли свежих новостей";
+  // Статическая версия: вкладка открыта долго — подхватываем новый выпуск (собирается раз в час).
+  async function checkStaticUpdate() {
+    if (document.hidden || refreshing) return;
+    try {
+      staticStamp = Date.now();
+      const meta = await staticJson("meta.json");
+      if (meta.updated_at && lastData && meta.updated_at !== lastData.updated_at) { staticPools = {}; await load(); loadSources(); }
+    } catch (_) {}
+  }
+  document.addEventListener("visibilitychange", () => { if (STATIC && !document.hidden) checkStaticUpdate(); });
 
   // ---------------- модальные окна ----------------
   let lastFocus = null;
@@ -1560,7 +1693,7 @@
     ov.dataset.id = item.id;
     try {
       const url = item.external ? `/api/read?url=${encodeURIComponent(item.source_url)}` : `/api/article/${item.id}`;
-      const res = await fetch(url);
+      const res = await api(url);
       const data = res.ok ? await res.json() : null;
       if (ov.dataset.id !== String(item.id)) return;
       if (data && item.external) {   // статья из интернета: уточняем источник и дату
@@ -1634,7 +1767,8 @@
     }
     kids.push(el("div", { class: "s-label" }, "Попробуйте"),
       el("div", { class: "s-chips" }, ...SUGGEST.map((q) => el("button", { class: "s-chip", type: "button", onclick: () => runSearch(q) }, q))));
-    kids.push(el("div", { class: "s-note" }, "Ищет по всему интернету (на русском) и по вашей ленте. Любой результат откроется прямо здесь — без рекламы, с кнопкой «✨ Кратко». Можно вставить и ссылку на статью."));
+    if (STATIC) kids.push(el("div", { class: "s-note" }, "Ищет по новостям в вашей ленте (RU, EN и KZ). Для поиска по всему интернету под результатами будут кнопки Google и Яндекс. Можно вставить ссылку — она откроется в новой вкладке."));
+    else kids.push(el("div", { class: "s-note" }, "Ищет по всему интернету (на русском) и по вашей ленте. Любой результат откроется прямо здесь — без рекламы, с кнопкой «✨ Кратко». Можно вставить и ссылку на статью."));
     $("sBody").replaceChildren(...kids);
   }
 
@@ -1653,6 +1787,12 @@
       kids.push(el("div", { class: "s-label" }, "В интернете", data.engine ? el("small", {}, "· " + data.engine) : null));
       for (const r of data.web) kids.push(searchRow({ icon: favicon(r.url), title: r.title, host: r.source || host(r.url), text: r.snippet, onClick: () => openExternal(r) }));
     }
+    if (STATIC) {
+      const link = (name, href) => el("a", { href, target: "_blank", rel: "noopener noreferrer" }, name + " ↗");
+      kids.push(el("div", { class: "s-note" }, kids.length ? "" : "В ленте ничего не нашлось. ", "Искать в интернете: ",
+        link("Google", `https://www.google.com/search?q=${encodeURIComponent(q)}&hl=ru`), " · ",
+        link("Яндекс", `https://yandex.kz/search/?text=${encodeURIComponent(q)}`)));
+    }
     if (!kids.length) {
       const g = el("a", { href: `https://www.google.com/search?q=${encodeURIComponent(q)}&hl=ru`, target: "_blank", rel: "noopener noreferrer" }, "поискать в Google ↗");
       kids.push(el("div", { class: "s-note" }, data.errors && data.errors.length
@@ -1666,7 +1806,10 @@
     q = (q || "").trim();
     $("sq").value = q;
     if (!q) return renderSearchHome();
-    if (looksLikeUrl(q)) { openExternal({ url: q, title: q, snippet: "" }); return; }
+    if (looksLikeUrl(q)) {
+      if (STATIC) { window.open(q.trim(), "_blank", "noopener"); return; }   // без сервера чужую страницу не прочитать
+      openExternal({ url: q, title: q, snippet: "" }); return;
+    }
     recent = [q, ...recent.filter((x) => x.toLowerCase() !== q.toLowerCase())].slice(0, 6);
     store.set("recentSearches", recent);
     const seq = ++searchSeq;
@@ -1676,7 +1819,7 @@
       el("div", { style: "flex:1" }, el("div", { class: "skeleton", style: "height:15px;width:80%" }), el("div", { class: "skeleton", style: "height:11px;width:30%;margin-top:8px" }),
         el("div", { class: "skeleton", style: "height:12px;width:95%;margin-top:8px" })))));
     try {
-      const res = await fetch("/api/search?q=" + encodeURIComponent(q));
+      const res = await api("/api/search?q=" + encodeURIComponent(q));
       const data = res.ok ? await res.json() : { local: [], web: [], errors: ["error"] };
       if (seq !== searchSeq) return;
       lastSearch = { q, data };
@@ -1793,7 +1936,7 @@
     setInterval(renderGreeting, 60 * 1000);
     document.fonts && document.fonts.ready.then(renderRegion);
     try {
-      const t = await (await fetch("/api/topics")).json();
+      const t = await (await api("/api/topics")).json();
       for (const x of t.topics) catalog[x.id] = x;
       maxTopics = t.max || 12;
       const saved = store.get("topics", null);
@@ -1803,11 +1946,13 @@
       save();
       renderPills();
       const data = await load();
-      if (!data.updated_at && !data.refreshing) doRefresh();
+      if (!data.updated_at && !data.refreshing && !STATIC) doRefresh();
       loadSources();
+      if (STATIC) setInterval(checkStaticUpdate, 10 * 60 * 1000);
     } catch (_) {
-      $("status").textContent = "сервер недоступен";
-      $("feed").replaceChildren(el("div", { class: "empty empty-big" }, el("div", { class: "emoji" }, "🔌"), "Не удалось связаться с сервером. Запущен ли run.py?"));
+      $("status").textContent = STATIC ? "нет связи" : "сервер недоступен";
+      $("feed").replaceChildren(el("div", { class: "empty empty-big" }, el("div", { class: "emoji" }, "🔌"),
+        STATIC ? "Не удалось загрузить новости. Проверьте интернет и обновите страницу." : "Не удалось связаться с сервером. Запущен ли run.py?"));
     }
   }
   init();

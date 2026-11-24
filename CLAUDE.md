@@ -23,13 +23,18 @@ mynews/reader.py     извлечение текста статьи + экстр
 mynews/search.py     веб-поиск (DuckDuckGo → Bing RSS, без ключей) и чтение любой ссылки
 mynews/server.py     API: /api/news, /api/refresh, /api/article/{id}, /api/search,
                      /api/read, /api/topics, /api/sources, /api/weather + фоновое обновление
-static/index.html    весь интерфейс
+mynews/static_site.py  экспорт статической версии (data/*.json) — tools/build_site.py
+.github/workflows/pages.yml  раз в час собирает ленту и публикует в ветку gh-pages
+static/index.html    весь интерфейс (window.VOLNA_STATIC → staticApi вместо /api)
 tools/ux_walkthrough.py, .claude/agents/ux-reviewer.md   агент UX-ревью (/ux-review)
 ```
 
 ## Команды
 
 - Запуск: `python run.py` (Windows: `start.bat` или `py run.py`).
+- Онлайн-версия: https://alibeks.github.io/my-news/ (GitHub Pages, сборка `python tools/build_site.py`).
+  Любой новый эндпоинт `/api/*` нужно продублировать в `staticApi()` в `index.html`
+  (или явно отключить в статическом режиме) — сервера на Pages нет.
 - Тесты: `python -m pytest -q` — держать зелёными; на новую логику бэкенда — тест в
   `tests/test_pipeline.py`.
 - UX-проверка: `/ux-review [morning|gamer|investor]` или `python tools/ux_walkthrough.py`.
@@ -58,6 +63,8 @@ tools/ux_walkthrough.py, .claude/agents/ux-reviewer.md   агент UX-ревь�
 - Прочитанное / «Новое с прошлого визита», «Сохранить на потом», скрытие источников.
 - Поиск по интернету (Ctrl+K) с чтением результатов внутри сайта.
 - Агент UX-ревью для Claude Code (по подписке Pro).
+- Онлайн-версия на GitHub Pages: обновление раз в час через GitHub Actions; поиск — по ленте
+  + ссылки на Google/Яндекс; чтение произвольных ссылок только в локальной версии.
 
 Известные ограничения:
 - Часть RSS-адресов не проверена из облака; Rozetked и некоторые KZ-ленты могли не ответить.

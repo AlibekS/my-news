@@ -340,3 +340,44 @@ def test_extract_text_includes_images():
             f"<figure><img src='/img/gpu.jpg' alt='Плата'></figure><p>{para}</p></article></body></html>")
     out = reader.clean_content(reader.extract_text(html, "https://example.com/news/1"))
     assert "![Плата](https://example.com/img/gpu.jpg)" in out.split("\n")
+
+
+# --------------------------------------------------------------------------- #
+# Статическая версия (GitHub Pages)
+# --------------------------------------------------------------------------- #
+def test_static_site_export(tmp_path):
+    import json
+
+    from mynews import static_site
+
+    pool = [
+        dict(item("https://a.ru/1", "Нейросеть рисует видеокарты", topics=["ai"], summary="х" * 2000), id=1),
+        dict(item("https://a.com/2", "New GPU from AMD", topics=["hardware"], region="en"), id=2),
+        dict(item("https://a.kz/3", "Новости Астаны", topics=["kz"], region="kz", lang="ru"), id=3),
+        dict(item("https://a.kz/4", "Астана жаңалықтары", topics=["kz"], region="kz", lang="kk"), id=4),
+    ]
+    articles = {1: {"id": 1, "tldr": ["a", "b"], "content": "Текст статьи", "image_url": None}}
+    out = tmp_path / "site"
+    res = static_site.write_site(out, pool, articles, NOW, {"checked_at": NOW, "feeds": []})
+    assert res == {"items": 3, "articles": 1, "ru": 1, "en": 1, "kz": 1}
+
+    html = (out / "index.html").read_text(encoding="utf-8")
+    assert html.index(static_site.STATIC_FLAG) < html.index("const STATIC")  # флаг — до основного скрипта
+    assert (out / ".nojekyll").exists()
+    ru = json.loads((out / "data" / "news-ru.json").read_text(encoding="utf-8"))
+    assert ru["updated_at"] == NOW and len(ru["items"][0]["summary"]) == static_site.SUMMARY_CHARS
+    kz = json.loads((out / "data" / "news-kz.json").read_text(encoding="utf-8"))
+    assert [i["id"] for i in kz["items"]] == [3]  # KZ — только материалы на русском
+    topics = json.loads((out / "data" / "topics.json").read_text(encoding="utf-8"))
+    assert "ai" in topics["defaults"] and topics["max"]
+    assert json.loads((out / "data" / "a" / "1.json").read_text(encoding="utf-8"))["content"] == "Текст статьи"
+
+
+def test_static_article_ids_cover_each_topic_and_region():
+    from mynews import static_site
+
+    pool = [dict(item(f"https://a.ru/{i}", f"Нейросеть номер {i}", topics=["ai"], age_h=i), id=i) for i in range(1, 6)]
+    pool.append(dict(item("https://a.com/9", "Steam record", topics=["games"], region="en"), id=9))
+    ids = static_site.article_ids(pool, per_topic=3, limit=10)
+    assert set(ids) == {1, 2, 3, 9}
+    assert static_site.article_ids(pool, per_topic=3, limit=2) == ids[:2]
