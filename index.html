@@ -1,0 +1,1983 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Волна</title>
+<script>window.VOLNA_STATIC = true;</script>
+<script>
+  // Тема применяется до отрисовки, чтобы не было вспышки светлого фона.
+  (function () {
+    var t = null;
+    try { t = JSON.parse(localStorage.getItem("volna.theme")); } catch (e) {}
+    if (t !== "light" && t !== "dark") t = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    document.documentElement.dataset.theme = t;
+  })();
+</script>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%2338BDF8'/><stop offset='1' stop-color='%232563EB'/></linearGradient></defs><rect width='32' height='32' rx='9' fill='url(%23g)'/><path d='M5 19c3 0 3-3 5.5-3s2.5 3 5.5 3 3-3 5.5-3 2.5 3 5.5 3' stroke='white' stroke-width='2.6' fill='none' stroke-linecap='round'/><path d='M5 13c3 0 3-3 5.5-3s2.5 3 5.5 3 3-3 5.5-3 2.5 3 5.5 3' stroke='white' stroke-opacity='.6' stroke-width='2.6' fill='none' stroke-linecap='round'/></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  /* ---------------- Цвета: светлая «морская» тема ---------------- */
+  :root {
+    color-scheme: light;
+    --bg: #F2F8FF;
+    --bg-grad: linear-gradient(180deg, #DDF0FF 0%, #EEF7FF 340px, #F2F8FF 700px);
+    --ink: #0B2545;
+    --ink-2: #3E5C7E;
+    --muted: #7A90AA;
+    --card: #FFFFFF;
+    --surface: #FFFFFF;
+    --surface-2: #F4F8FD;
+    --soft: #EAF4FF;
+    --accent-ink: #2563EB;
+    --line: rgba(14, 80, 160, 0.09);
+    --header: rgba(255, 255, 255, .62);
+    --header-line: rgba(255, 255, 255, .7);
+    --overlay: rgba(11, 37, 69, .32);
+    --tldr: linear-gradient(135deg, #F0F8FF, #EAF4FF);
+    --tag-bg: rgba(255, 255, 255, .9);
+    --hot-bg: #FFF1E6; --hot-ink: #C2410C;
+    --skel-1: #E7F1FC; --skel-2: #F5FAFF;
+    --blob-1: #7DD3FC; --blob-2: #93C5FD; --blob-3: #A5F3FC; --blob-op: .55;
+    --grad: linear-gradient(135deg, #38BDF8 0%, #2563EB 100%);
+    --shadow: 0 1px 2px rgba(11, 37, 69, .04), 0 8px 28px rgba(14, 80, 160, .08);
+    --shadow-hover: 0 2px 4px rgba(11, 37, 69, .05), 0 18px 44px rgba(14, 80, 160, .16);
+    --modal-shadow: 0 40px 100px rgba(11, 37, 69, .3);
+  }
+  /* ---------------- Тёмная тема: «ночное море» ---------------- */
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #071426;
+    --bg-grad: linear-gradient(180deg, #0B2442 0%, #081A31 360px, #071426 720px);
+    --ink: #E7F0FF;
+    --ink-2: #A8BEDB;
+    --muted: #6F88AA;
+    --card: #0E2038;
+    --surface: #10243F;
+    --surface-2: #0F2340;
+    --soft: #14305A;
+    --accent-ink: #7CB8FF;
+    --line: rgba(140, 180, 255, .12);
+    --header: rgba(7, 20, 38, .72);
+    --header-line: rgba(140, 180, 255, .08);
+    --overlay: rgba(2, 8, 20, .6);
+    --tldr: linear-gradient(135deg, #10294B, #0E2443);
+    --tag-bg: rgba(7, 20, 38, .78);
+    --hot-bg: rgba(249, 115, 22, .16); --hot-ink: #FDBA74;
+    --skel-1: #10243F; --skel-2: #183459;
+    --blob-1: #0EA5E9; --blob-2: #1D4ED8; --blob-3: #0891B2; --blob-op: .2;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 10px 30px rgba(0, 0, 0, .28);
+    --shadow-hover: 0 2px 6px rgba(0, 0, 0, .35), 0 20px 48px rgba(0, 0, 0, .45);
+    --modal-shadow: 0 40px 100px rgba(0, 0, 0, .6);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body, h1, h2, h3, h4, p, ul { margin: 0; padding: 0; }
+  ul { list-style: none; }
+  img, svg { display: block; }
+  button, input { font: inherit; color: inherit; }
+  button { background: none; border: 0; padding: 0; cursor: pointer; }
+  a { color: inherit; text-decoration: none; }
+  .hidden { display: none !important; }
+
+  html { background: var(--bg); overflow-x: clip; }
+  body {
+    min-height: 100vh; color: var(--ink); overflow-x: clip;
+    font-family: "Manrope", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    background: var(--bg-grad);
+    transition: background-color .3s, color .3s;
+  }
+  body.locked { overflow: hidden; }
+
+  .blobs { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
+  .blob { position: absolute; border-radius: 50%; filter: blur(70px); opacity: var(--blob-op); animation: drift 22s ease-in-out infinite alternate; }
+  .blob.b1 { width: 520px; height: 520px; background: var(--blob-1); top: -180px; left: -120px; }
+  .blob.b2 { width: 460px; height: 460px; background: var(--blob-2); top: -140px; right: -140px; animation-delay: -7s; }
+  .blob.b3 { width: 380px; height: 380px; background: var(--blob-3); top: 380px; left: 45%; opacity: calc(var(--blob-op) * .65); animation-delay: -12s; }
+  @keyframes drift { to { transform: translate(40px, 30px) scale(1.08); } }
+  @media (prefers-reduced-motion: reduce) { .blob, .w-icon { animation: none !important; } }
+
+  /* Ширина контента: до 1520px; на широких экранах оставляем место слева под закладки. */
+  :root { --wrap: 1520px; }
+  @media (min-width: 1320px) { :root { --wrap: min(1520px, calc(100vw - 170px)); } }
+  .wrap { max-width: var(--wrap); margin: 0 auto; padding: 0 20px; }
+
+  /* ---------------- Шапка ---------------- */
+  .header {
+    position: sticky; top: 0; z-index: 30; background: var(--header);
+    backdrop-filter: saturate(1.4) blur(18px); -webkit-backdrop-filter: saturate(1.4) blur(18px);
+    border-bottom: 1px solid var(--header-line); box-shadow: 0 1px 0 var(--line);
+  }
+  .header .wrap { height: 64px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .head-left, .head-right { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .logo { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 20px; letter-spacing: -.02em; margin-right: 6px; }
+  .logo-mark { width: 34px; height: 34px; border-radius: 11px; background: var(--grad); display: grid; place-items: center; box-shadow: 0 6px 16px rgba(37, 99, 235, .35); flex: none; }
+  .chip-btn {
+    height: 38px; padding: 0 14px; border-radius: 9999px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; flex: none;
+    background: var(--surface); border: 1px solid var(--line); font-size: 13.5px; font-weight: 700; color: var(--ink-2);
+    transition: background .2s, color .2s, box-shadow .2s, border-color .2s, transform .15s;
+  }
+  .chip-btn:hover { box-shadow: var(--shadow); color: var(--ink); }
+  .chip-btn:active { transform: scale(.97); }
+  .chip-btn.icon { width: 38px; padding: 0; }
+  .chip-btn.primary { background: var(--grad); color: #fff; border: 0; box-shadow: 0 6px 16px rgba(37, 99, 235, .3); }
+  .chip-btn.primary:hover { box-shadow: 0 8px 22px rgba(37, 99, 235, .42); color: #fff; }
+  .chip-btn:disabled { opacity: .7; cursor: default; }
+  .spin { animation: spin .9s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Переключатель RU / EN / KZ */
+  .seg { position: relative; display: inline-flex; padding: 3px; border-radius: 9999px; background: var(--surface); border: 1px solid var(--line); flex: none; }
+  .seg button { position: relative; z-index: 1; height: 30px; min-width: 44px; padding: 0 10px; border-radius: 9999px; font-size: 13px; font-weight: 800; color: var(--muted); transition: color .25s; letter-spacing: .02em; }
+  .seg button:hover { color: var(--ink); }
+  .seg button.on { color: #fff; }
+  .seg .thumb { position: absolute; z-index: 0; top: 3px; bottom: 3px; left: 3px; border-radius: 9999px; background: var(--grad);
+    box-shadow: 0 4px 12px rgba(37, 99, 235, .35); transition: transform .3s cubic-bezier(.3,.9,.3,1), width .3s; }
+
+  @media (max-width: 720px) {
+    .lbl { display: none; }
+    .logo span.name { display: none; }
+    .header .wrap { gap: 6px; }
+    .chip-btn.home { width: 38px; padding: 0; }
+    .chip-btn.refresh { width: 38px; padding: 0; }
+  }
+  /* Планшет: подписи «Домой» / «Обновить» и Ctrl K не помещаются рядом с полем поиска. */
+  @media (max-width: 900px) {
+    .chip-btn.home .lbl, .chip-btn.refresh .lbl, .search-pill kbd { display: none; }
+    .chip-btn.home, .chip-btn.refresh { width: 38px; padding: 0; }
+  }
+  /* Телефон: шапка в одну строку без наложений. «Домой» дублирует логотип — прячем. */
+  @media (max-width: 600px) {
+    .chip-btn.home { display: none; }
+    .logo { margin-right: 0; }
+    .head-right { gap: 6px; }
+    .seg button { min-width: 40px; padding: 0 8px; }
+  }
+  @media (max-width: 380px) {
+    .header .wrap { gap: 4px; }
+    .head-right { gap: 4px; }
+    .chip-btn.icon, .chip-btn.refresh, .header .search-pill { width: 36px; height: 36px; }
+    .seg button { min-width: 36px; padding: 0 6px; }
+  }
+  /* Совсем узкие экраны (320 px): тема и так берётся из настроек телефона. */
+  @media (max-width: 340px) { #themeBtn { display: none; } }
+
+  /* ---------------- Hero + виджет ---------------- */
+  .hero { padding: 36px 0 8px; display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 28px; align-items: center; }
+  @media (max-width: 860px) { .hero { grid-template-columns: 1fr; gap: 20px; padding-top: 28px; } }
+  .hero h1 { font-size: clamp(30px, 4.4vw, 46px); font-weight: 800; letter-spacing: -.03em; line-height: 1.08; }
+  .hero h1 .grad { background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .hero p { margin-top: 12px; color: var(--ink-2); font-size: 15.5px; font-weight: 500; }
+  .hero p .dot { color: var(--muted); padding: 0 6px; }
+
+  .weather {
+    position: relative; overflow: hidden; border-radius: 26px; padding: 20px 22px; color: #fff; min-height: 190px;
+    background: var(--w-grad, linear-gradient(135deg, #38BDF8, #2563EB));
+    box-shadow: 0 18px 40px rgba(37, 99, 235, .28); isolation: isolate; transition: background .6s;
+  }
+  .weather::before, .weather::after { content: ""; position: absolute; border-radius: 50%; background: rgba(255,255,255,.14); z-index: -1; }
+  .weather::before { width: 220px; height: 220px; right: -70px; top: -90px; }
+  .weather::after { width: 160px; height: 160px; left: -50px; bottom: -80px; background: rgba(255,255,255,.08); }
+  .w-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+  .w-city { font-size: 14px; font-weight: 700; opacity: .92; display: flex; align-items: center; gap: 6px; }
+  .w-time { font-size: 40px; font-weight: 800; letter-spacing: -.03em; line-height: 1.05; margin-top: 4px; font-variant-numeric: tabular-nums; }
+  .w-time .colon { animation: blink 1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: .35; } }
+  .w-date { font-size: 13px; font-weight: 600; opacity: .85; margin-top: 2px; }
+  .w-icon { font-size: 54px; line-height: 1; filter: drop-shadow(0 8px 16px rgba(0,0,0,.18)); animation: float 5s ease-in-out infinite; }
+  @keyframes float { 50% { transform: translateY(-6px); } }
+  .w-temp { font-size: 30px; font-weight: 800; letter-spacing: -.02em; text-align: right; margin-top: 4px; }
+  .w-bottom { margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,.22); display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; font-size: 13px; font-weight: 600; }
+  .w-bottom .desc { font-weight: 800; }
+  .w-bottom span { opacity: .95; white-space: nowrap; }
+
+  /* ---------------- Темы ---------------- */
+  .topics-bar { padding: 12px 0 0; margin-top: 14px; }
+  /* На компьютере темы переносятся на новую строку — все видны, кнопка настройки всегда на месте.
+     На телефоне — одна строка с прокруткой пальцем, кнопка настройки стоит первой. */
+  .pills { display: flex; flex-wrap: wrap; gap: 10px; }
+  /* Много тем на широком экране — ровная сетка ровно в два ряда (кол-во колонок задаёт JS). */
+  @media (min-width: 901px) {
+    .pills.grid2 { display: grid; grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); }
+    .pills.grid2 .pill { width: 100%; padding-right: 12px; gap: 7px; font-size: 14px; }
+  }
+  @media (max-width: 600px) {
+    .pills { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding: 8px 16px 26px; margin: -8px -16px -18px;
+      -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 40px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 40px), transparent); }
+    .pills::-webkit-scrollbar { display: none; }
+    .pill.add { order: -1; }
+  }
+  .pill {
+    flex: none; height: 42px; padding: 0 16px 0 7px; border-radius: 9999px; display: inline-flex; align-items: center; gap: 8px;
+    background: var(--surface); border: 1px solid var(--line); font-weight: 700; font-size: 14.5px; color: var(--ink-2);
+    box-shadow: 0 1px 2px rgba(11,37,69,.04); transition: transform .15s, box-shadow .2s, background .2s, color .2s;
+  }
+  .pill:hover { transform: translateY(-1px); box-shadow: var(--shadow); }
+  .pill .emo { width: 29px; height: 29px; border-radius: 50%; display: grid; place-items: center; font-size: 15px; background: var(--soft); }
+  .pill.active { color: #fff; border-color: transparent; background: var(--c); box-shadow: 0 6px 18px color-mix(in srgb, var(--c) 40%, transparent); }
+  .pill.active .emo { background: rgba(255,255,255,.25); }
+  .pill { position: relative; min-width: 0; padding-right: 16px; cursor: pointer; user-select: none; }
+  .pill:focus-visible { outline: 3px solid rgba(14,165,233,.45); outline-offset: 2px; }
+  .pill .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  /* Крестик удаления: появляется при наведении на правый край кнопки */
+  .pill-x { position: absolute; top: 50%; right: 6px; width: 26px; height: 26px; margin-top: -13px; border-radius: 50%;
+    display: grid; place-items: center; font-size: 15px; font-weight: 700; line-height: 1;
+    color: var(--muted); background: var(--surface); box-shadow: -10px 0 12px 2px var(--surface);
+    opacity: 0; transform: scale(.6); transition: opacity .15s, transform .15s, background .15s, color .15s; }
+  .pill.active .pill-x { color: #fff; background: var(--c); box-shadow: -10px 0 12px 2px var(--c); }
+  .pill.x-near .pill-x, .pill-x:focus-visible { opacity: 1; transform: none; }
+  .pill-x:hover { background: #EF4444 !important; color: #fff !important; box-shadow: -10px 0 12px 2px var(--surface); }
+  .pill.active .pill-x:hover { box-shadow: -10px 0 12px 2px var(--c); }
+  @media (hover: none) { .pill-x { opacity: .75; transform: scale(.85); } .pill { padding-right: 36px; } }
+  .pill.leaving { animation: leave .22s ease forwards; }
+  @keyframes leave { to { opacity: 0; transform: scale(.85); } }
+  .pill.add { padding: 0 16px 0 12px; gap: 6px; justify-content: center; color: var(--accent-ink); border: 1.5px dashed color-mix(in srgb, var(--accent-ink) 45%, transparent); background: transparent; }
+  .pill.add b { font-size: 20px; font-weight: 600; line-height: 1; }
+  .pill.add:hover { background: var(--surface); border-style: solid; }
+
+  /* ---------------- Лента ---------------- */
+  main { padding-bottom: 40px; min-height: 40vh; }
+  .section { margin-top: 26px; scroll-margin-top: 80px; }
+  .section-head { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+  .section-icon { width: 38px; height: 38px; border-radius: 12px; display: grid; place-items: center; font-size: 19px; background: color-mix(in srgb, var(--c) 18%, var(--card)); }
+  .section-head h2 { font-size: 22px; font-weight: 800; letter-spacing: -.02em; }
+  .section-head .count { margin-left: auto; color: var(--muted); font-size: 13px; font-weight: 600; }
+  .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; grid-auto-flow: dense; }
+  @media (max-width: 920px) { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 600px) { .grid { grid-template-columns: 1fr; gap: 14px; } .wrap { padding: 0 16px; } }
+
+  .card {
+    display: flex; flex-direction: column; text-align: left; width: 100%; overflow: hidden;
+    background: var(--card); border-radius: 20px; border: 1px solid var(--line); box-shadow: var(--shadow);
+    transition: transform .22s cubic-bezier(.2,.8,.2,1), box-shadow .22s, background .3s;
+  }
+  .card:hover { transform: translateY(-4px); box-shadow: var(--shadow-hover); }
+  .card:focus-visible { outline: 3px solid rgba(14,165,233,.45); outline-offset: 2px; }
+  .card { cursor: pointer; position: relative; }
+
+  /* Прочитанные — приглушены, новые — с меткой */
+  .card.read { opacity: .58; filter: saturate(.7); }
+  .card.read:hover, .card.read:focus-visible { opacity: 1; filter: none; }
+  .badge.new { background: var(--grad); color: #fff; }
+  .meta .seen { color: var(--muted); }
+
+  /* Кнопка «сохранить» на карточке */
+  .save-btn { position: absolute; z-index: 3; top: 10px; right: 10px; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center;
+    background: var(--tag-bg); color: var(--ink); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    box-shadow: 0 2px 8px rgba(0,0,0,.12); opacity: 0; transform: scale(.9); transition: opacity .2s, transform .2s, color .2s; }
+  .card:hover .save-btn, .card:focus-within .save-btn, .save-btn.on { opacity: 1; transform: none; }
+  .save-btn:hover { transform: scale(1.08); }
+  .save-btn.on { color: #F59E0B; }
+  .save-btn.on svg { fill: currentColor; }
+  @media (hover: none) { .save-btn { opacity: 1; transform: none; } }
+  .pop { animation: pop .35s cubic-bezier(.3,1.6,.5,1); }
+  @keyframes pop { 40% { transform: scale(1.3); } }
+
+  /* Счётчик на кнопке «Сохранённые» */
+  .chip-btn .cnt { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9999px; font-size: 11px; font-weight: 800; display: grid; place-items: center; background: #F59E0B; color: #fff; }
+  .chip-btn.icon .cnt { position: absolute; top: -4px; right: -4px; }
+  .chip-btn.icon { position: relative; }
+
+  /* Статус: «отметить всё прочитанным» */
+  .status-link { color: var(--accent-ink); font-weight: 700; cursor: pointer; }
+  .status-link:hover { text-decoration: underline; }
+
+  /* Всплывающее уведомление */
+  .toast { position: fixed; left: 50%; bottom: 24px; z-index: 60; transform: translate(-50%, 20px); opacity: 0; pointer-events: none;
+    display: flex; align-items: center; gap: 14px; padding: 12px 14px 12px 18px; border-radius: 16px; max-width: calc(100vw - 32px);
+    background: #0B2545; color: #fff; font-size: 14px; font-weight: 600; box-shadow: 0 16px 40px rgba(0,0,0,.3);
+    transition: opacity .2s, transform .3s cubic-bezier(.3,.9,.3,1); }
+  :root[data-theme="dark"] .toast { background: #E7F0FF; color: #0B2545; }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
+  .toast button { color: #7CB8FF; font-weight: 800; white-space: nowrap; }
+  :root[data-theme="dark"] .toast button { color: #2563EB; }
+
+  /* Окно «Сохранённые» */
+  .s-list { margin-top: 18px; display: flex; flex-direction: column; gap: 10px; }
+  .s-row { display: flex; gap: 14px; align-items: center; padding: 10px; border-radius: 16px; border: 1px solid var(--line); background: var(--surface); cursor: pointer; transition: box-shadow .2s, transform .15s; }
+  .s-row:hover { box-shadow: var(--shadow); transform: translateY(-1px); }
+  .s-row .media { width: 112px; flex: none; border-radius: 12px; aspect-ratio: 16 / 10; }
+  .s-row .media .ph span { font-size: 26px; }
+  .s-row .txt { flex: 1; min-width: 0; }
+  .s-row .txt b { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 15px; line-height: 1.3; }
+  .s-row .rm { flex: none; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; color: var(--muted); }
+  .s-row .rm:hover { background: #FEE2E2; color: #DC2626; }
+  @media (max-width: 600px) { .s-row .media { width: 84px; } }
+
+  /* Окно чтения: вторичные действия */
+  .r-extra { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+  .ghost-btn { height: 36px; padding: 0 14px; border-radius: 9999px; display: inline-flex; align-items: center; gap: 7px; font-size: 13.5px; font-weight: 700;
+    color: var(--ink-2); background: var(--surface-2); border: 1px solid var(--line); transition: background .2s, color .2s; }
+  .ghost-btn:hover { background: var(--soft); color: var(--ink); }
+  .ghost-btn.on { color: #D97706; border-color: rgba(245, 158, 11, .4); background: rgba(245, 158, 11, .1); }
+  .ghost-btn.on svg { fill: currentColor; }
+  .ghost-btn.danger:hover { background: #FEE2E2; color: #DC2626; }
+
+  /* Подвал: скрыть/вернуть источник */
+  .src-list .tg { margin-left: auto; flex: none; font-size: 11.5px; font-weight: 700; color: var(--accent-ink); opacity: 0; transition: opacity .15s; }
+  .src-list li:hover .tg, .src-list li.off .tg { opacity: 1; }
+  .src-list li.off > span:not(.tg) { text-decoration: line-through; opacity: .6; }
+  @media (hover: none) { .src-list .tg { opacity: 1; } }
+
+  /* Превью. Если картинка маленькая или другой формы — она вписывается целиком
+     поверх размытой копии себя, а не растягивается. */
+  .media { position: relative; aspect-ratio: 16 / 9; background: var(--soft); overflow: hidden; width: 100%; flex: none; }
+  .media img.fg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transition: transform .5s ease, opacity .3s; }
+  .media img.bg { display: none; }
+  .media.fit img.bg { display: block; position: absolute; inset: -20px; width: calc(100% + 40px); height: calc(100% + 40px); object-fit: cover; filter: blur(22px) saturate(1.3); opacity: .85; transform: scale(1.05); }
+  .media.fit img.fg { object-fit: contain; inset: 10px; width: calc(100% - 20px); height: calc(100% - 20px); filter: drop-shadow(0 8px 22px rgba(0,0,0,.25)); }
+  .media.fit.tiny img.fg { inset: 0; margin: auto; width: auto; height: auto; max-width: calc(100% - 32px); max-height: calc(100% - 32px); border-radius: 10px; }
+  .card:hover .media:not(.fit) img.fg { transform: scale(1.04); }
+  .ph { position: absolute; inset: 0; display: grid; place-items: center;
+    background: radial-gradient(circle at 25% 20%, rgba(255,255,255,.5), transparent 45%),
+                linear-gradient(135deg, color-mix(in srgb, var(--c) 55%, #BAE6FD), color-mix(in srgb, var(--c) 85%, #1E3A8A)); }
+  .ph span { font-size: 44px; filter: drop-shadow(0 6px 14px rgba(0,0,0,.18)); }
+  .tag { position: absolute; z-index: 2; top: 12px; left: 12px; height: 26px; padding: 0 10px; border-radius: 9999px; display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12px; font-weight: 700; color: var(--ink); background: var(--tag-bg); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+  .tag i { width: 7px; height: 7px; border-radius: 50%; background: var(--c); }
+  .body { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 8px; flex: 1; width: 100%; }
+  .meta { color: var(--muted); font-size: 12.5px; font-weight: 600; display: flex; gap: 6px; align-items: center; min-width: 0; flex-wrap: wrap; }
+  .meta .src { color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 60%; }
+  .title { font-size: 16.5px; font-weight: 700; line-height: 1.32; letter-spacing: -.01em; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .lead { color: var(--ink-2); font-size: 14px; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .foot { margin-top: auto; padding-top: 4px; display: flex; gap: 6px; flex-wrap: wrap; }
+  .badge { height: 24px; padding: 0 9px; border-radius: 9999px; display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 700; background: var(--soft); color: var(--accent-ink); white-space: nowrap; }
+  .badge.hot { background: var(--hot-bg); color: var(--hot-ink); }
+
+  /* Главная карточка: горизонтальная, на две колонки — картинка слева, текст справа.
+     Высота как у соседних карточек, без пустых «простыней». */
+  .card.featured { grid-column: span 2; flex-direction: row; }
+  .card.featured .media { aspect-ratio: auto; width: 48%; align-self: stretch; min-height: 230px; }
+  .card.featured .body { padding: 20px 22px; gap: 10px; }
+  .card.featured .title { font-size: 21px; line-height: 1.25; letter-spacing: -.02em; -webkit-line-clamp: 4; }
+  .card.featured .lead { -webkit-line-clamp: 4; }
+  @media (max-width: 600px) {
+    .card.featured { grid-column: auto; flex-direction: column; }
+    .card.featured .media { width: 100%; aspect-ratio: 16 / 9; min-height: 0; }
+    .card.featured .body { padding: 14px 16px 16px; }
+    .card.featured .title { font-size: 18px; }
+  }
+
+  /* «Главное сейчас» */
+  .section.highlights .section-icon { background: var(--grad); }
+  .section-sub { color: var(--muted); font-size: 13px; font-weight: 600; margin: -8px 0 14px 50px; }
+
+  /* Кнопка «Показать ещё» */
+  .more-row { display: flex; justify-content: center; margin-top: 14px; }
+  .more-btn { height: 40px; padding: 0 18px; border-radius: 9999px; display: inline-flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 700;
+    color: var(--ink-2); background: var(--surface); border: 1px solid var(--line); transition: box-shadow .2s, color .2s, transform .15s; }
+  .more-btn:hover { box-shadow: var(--shadow); color: var(--ink); }
+  .more-btn i { font-style: normal; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: color-mix(in srgb, var(--c) 18%, var(--card)); color: var(--c); font-size: 12px; font-weight: 800; }
+  .card.appear { animation: appear .35s cubic-bezier(.2,.8,.2,1) both; }
+  @keyframes appear { from { opacity: 0; transform: translateY(10px); } }
+
+  /* Закладки-переходы к темам: слева на широком экране, полоской под шапкой — на узком */
+  .rail { position: fixed; z-index: 25; left: max(10px, calc((100vw - var(--wrap)) / 2 - 52px)); top: 50%; transform: translate(-8px, -50%);
+    display: flex; flex-direction: column; gap: 4px; padding: 7px; border-radius: 22px;
+    background: var(--header); border: 1px solid var(--line); box-shadow: var(--shadow);
+    backdrop-filter: saturate(1.4) blur(18px); -webkit-backdrop-filter: saturate(1.4) blur(18px);
+    opacity: 0; pointer-events: none; transition: opacity .25s, transform .3s cubic-bezier(.3,.9,.3,1); }
+  .rail.show { opacity: 1; pointer-events: auto; transform: translate(0, -50%); }
+  .rail a { position: relative; width: 40px; height: 40px; border-radius: 14px; display: grid; place-items: center; font-size: 19px; transition: background .2s, transform .15s; }
+  .rail a:hover { background: color-mix(in srgb, var(--c) 18%, transparent); transform: scale(1.06); }
+  .rail a.on { background: color-mix(in srgb, var(--c) 24%, transparent); }
+  .rail a.on::before { content: ""; position: absolute; left: -7px; top: 10px; bottom: 10px; width: 3px; border-radius: 3px; background: var(--c); }
+  .rail .tip { position: absolute; left: 50px; white-space: nowrap; padding: 6px 10px; border-radius: 10px; font-size: 13px; font-weight: 700;
+    background: var(--card); color: var(--ink); box-shadow: var(--shadow); border: 1px solid var(--line);
+    opacity: 0; transform: translateX(-4px); pointer-events: none; transition: opacity .15s, transform .15s; }
+  .rail a:hover .tip { opacity: 1; transform: none; }
+  @media (max-width: 1319px) {
+    .rail { left: 0; right: 0; top: 64px; transform: translateY(-6px); flex-direction: row; gap: 6px; padding: 7px 16px; border-radius: 0;
+      border-width: 0 0 1px; overflow-x: auto; scrollbar-width: none; box-shadow: 0 6px 18px rgba(11,37,69,.06); }
+    .rail.show { transform: none; }
+    .rail::-webkit-scrollbar { display: none; }
+    .rail a { flex: none; width: auto; height: 32px; padding: 0 12px 0 8px; border-radius: 9999px; display: inline-flex; align-items: center; gap: 6px; font-size: 15px; }
+    .rail a:hover { transform: none; }
+    .rail a.on { background: var(--c); }
+    .rail a.on .tip { color: #fff; }
+    .rail a.on::before { display: none; }
+    .rail .tip { position: static; opacity: 1; transform: none; background: none; border: 0; box-shadow: none; padding: 0; font-size: 13px; color: var(--ink-2); }
+    .section { scroll-margin-top: 130px; }
+  }
+
+  .empty { background: color-mix(in srgb, var(--card) 70%, transparent); border: 1.5px dashed var(--line); border-radius: 20px; padding: 26px; text-align: center; color: var(--ink-2); font-weight: 500; }
+  .empty-big { padding: 60px 20px; margin-top: 20px; }
+  .empty-big .emoji { font-size: 44px; margin-bottom: 12px; }
+
+  .skeleton { background: linear-gradient(90deg, var(--skel-1) 0%, var(--skel-2) 50%, var(--skel-1) 100%); background-size: 200% 100%; animation: shimmer 1.4s ease infinite; border-radius: 10px; }
+  @keyframes shimmer { to { background-position: -200% 0; } }
+
+  /* ---------------- Подвал ---------------- */
+  footer { padding: 10px 0 40px; color: var(--muted); font-size: 13px; font-weight: 500; }
+  footer details summary { cursor: pointer; display: inline-flex; gap: 6px; align-items: center; list-style: none; }
+  footer details summary::-webkit-details-marker { display: none; }
+  footer details summary:hover { color: var(--ink-2); }
+  .src-list { margin-top: 12px; display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 6px 18px; }
+  .src-list li { display: flex; gap: 8px; align-items: baseline; min-width: 0; }
+  .src-list .ok { color: #16A34A; } .src-list .bad { color: #DC2626; }
+  .src-list .rg { font-size: 10px; font-weight: 800; color: var(--accent-ink); background: var(--soft); border-radius: 6px; padding: 1px 5px; }
+  .src-list small { color: var(--muted); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* ---------------- Кнопка «наверх» ---------------- */
+  .to-top {
+    position: fixed; left: 22px; bottom: 22px; z-index: 40; width: 50px; height: 50px; border-radius: 50%;
+    display: grid; place-items: center; color: #fff; background: var(--grad);
+    box-shadow: 0 10px 26px rgba(37, 99, 235, .4);
+    opacity: 0; transform: translateY(16px) scale(.85); pointer-events: none;
+    transition: opacity .25s ease, transform .3s cubic-bezier(.3,.9,.3,1.2), box-shadow .2s;
+  }
+  .to-top.show { opacity: 1; transform: none; pointer-events: auto; }
+  .to-top:hover { box-shadow: 0 14px 32px rgba(37, 99, 235, .5); transform: translateY(-2px); }
+  @media (max-width: 600px) { .to-top { left: 16px; bottom: 16px; width: 46px; height: 46px; } }
+
+  /* ---------------- Модальные окна ---------------- */
+  .overlay { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; padding: 24px 16px;
+    background: var(--overlay); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); opacity: 0; transition: opacity .2s ease; }
+  .overlay.show { opacity: 1; }
+  .modal { position: relative; width: 100%; max-width: 680px; max-height: calc(100vh - 48px); overflow-y: auto; overscroll-behavior: contain;
+    background: var(--card); border-radius: 26px; box-shadow: var(--modal-shadow); border: 1px solid var(--line);
+    transform: translateY(14px) scale(.98); transition: transform .28s cubic-bezier(.2,.8,.2,1); }
+  .overlay.show .modal { transform: none; }
+  .close { position: absolute; top: 14px; right: 14px; z-index: 3; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center;
+    background: var(--tag-bg); color: var(--ink); box-shadow: 0 2px 10px rgba(11,37,69,.15); transition: transform .15s; backdrop-filter: blur(8px); }
+  .close:hover { transform: scale(1.06); }
+  .r-hero { position: relative; width: 100%; background: var(--soft); overflow: hidden; }
+  .r-hero .media { aspect-ratio: 2.4 / 1; max-height: 290px; }
+  .r-hero.small .media { aspect-ratio: auto; height: 120px; }
+  .r-body { padding: 22px 28px 28px; }
+  @media (max-width: 600px) { .r-body { padding: 18px 20px 22px; } }
+  .r-title { font-size: 24px; font-weight: 800; line-height: 1.22; letter-spacing: -.02em; margin-top: 10px; }
+  .tldr-box { margin-top: 18px; background: var(--tldr); border: 1px solid var(--line); border-radius: 18px; padding: 16px 18px; }
+  .tldr-box h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--accent-ink); font-weight: 800; margin-bottom: 10px; }
+  .tldr li { position: relative; padding-left: 20px; line-height: 1.55; font-size: 15.5px; color: var(--ink); }
+  .tldr li + li { margin-top: 8px; }
+  .tldr li::before { content: ""; position: absolute; left: 3px; top: .6em; width: 8px; height: 8px; border-radius: 50%; background: var(--grad); }
+  /* Окно чтения: сначала текст статьи, краткое содержание — по кнопке */
+  .r-top { display: flex; align-items: center; gap: 10px; }
+  .r-top .meta { flex: 1; min-width: 0; }
+  .sum-btn { flex: none; height: 34px; padding: 0 14px; border-radius: 9999px; font-size: 13.5px; font-weight: 800;
+    color: var(--accent-ink); background: var(--soft); border: 1px solid color-mix(in srgb, var(--accent-ink) 25%, transparent);
+    transition: background .2s, color .2s, box-shadow .2s, transform .15s; }
+  .sum-btn:hover { box-shadow: var(--shadow); transform: translateY(-1px); }
+  .sum-btn.on { background: var(--grad); color: #fff; border-color: transparent; }
+  .summary { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows .3s ease, opacity .25s ease, margin .3s ease; margin-top: 0; }
+  .summary > div { overflow: hidden; }
+  .summary.open { grid-template-rows: 1fr; opacity: 1; margin-top: 18px; }
+  .summary .tldr-box { margin-top: 0; }
+  .article { margin-top: 18px; }
+  .article p { font-size: 16px; line-height: 1.72; color: var(--ink); margin-bottom: 14px; opacity: .92; }
+  .article p:first-child { font-weight: 600; opacity: 1; }
+  .article .note { color: var(--muted); font-size: 14px; font-style: italic; }
+  .article figure { margin: 6px 0 20px; }
+  .article figure a { display: block; border-radius: 14px; overflow: hidden; background: var(--line); }
+  .article figure img { display: block; width: 100%; height: auto; max-height: 70vh; object-fit: contain; background: var(--card); }
+  .article figcaption { margin-top: 7px; font-size: 13.5px; line-height: 1.45; color: var(--muted); }
+  .link-btn { margin-top: 12px; color: var(--accent-ink); font-weight: 700; font-size: 14px; }
+  .also { margin-top: 18px; }
+  .also h4 { margin-bottom: 8px; font-size: 13px; color: var(--muted); font-weight: 700; }
+  .also .row { display: flex; gap: 6px; flex-wrap: wrap; }
+  .also a { height: 30px; padding: 0 12px; border-radius: 9999px; display: inline-flex; align-items: center; background: var(--surface-2); border: 1px solid var(--line); font-size: 13px; font-weight: 600; color: var(--ink-2); transition: background .2s; }
+  .also a:hover { background: var(--soft); color: var(--accent-ink); }
+  .actions { display: flex; gap: 10px; margin-top: 22px; flex-wrap: wrap; }
+  .btn { flex: 1 1 200px; height: 48px; border-radius: 14px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-weight: 700; font-size: 15px; transition: transform .15s, box-shadow .2s, background .2s; }
+  .btn:hover { transform: translateY(-1px); }
+  .btn-primary { background: var(--grad); color: #fff; box-shadow: 0 8px 22px rgba(37,99,235,.3); }
+  .btn-secondary { background: var(--soft); color: var(--accent-ink); }
+
+  /* Каталог тем */
+  .t-modal { max-width: 780px; }
+  .t-body { padding: 28px; }
+  @media (max-width: 600px) { .t-body { padding: 22px 18px; } }
+  .t-body h2 { font-size: 26px; font-weight: 800; letter-spacing: -.02em; }
+  .t-sub { color: var(--ink-2); margin-top: 6px; font-weight: 500; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .counter { height: 26px; padding: 0 10px; border-radius: 9999px; display: inline-flex; align-items: center; font-size: 13px; font-weight: 800; background: var(--soft); color: var(--accent-ink); transition: background .2s, color .2s; }
+  .counter.full { background: var(--hot-bg); color: var(--hot-ink); }
+  .t-grid { margin-top: 20px; display: grid; grid-template-columns: repeat(auto-fill, minmax(215px, 1fr)); gap: 12px; }
+  .tile { text-align: left; border-radius: 18px; padding: 14px; border: 1.5px solid var(--line); background: var(--surface); display: flex; gap: 12px; align-items: center; transition: border-color .2s, box-shadow .2s, transform .15s, background .2s; }
+  .tile:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
+  .tile .ic { flex: none; width: 46px; height: 46px; border-radius: 14px; display: grid; place-items: center; font-size: 23px; background: color-mix(in srgb, var(--c) 18%, var(--card)); }
+  .tile > span:nth-child(2) { flex: 1; min-width: 0; }
+  .tile b { display: block; font-size: 15px; font-weight: 800; overflow-wrap: anywhere; hyphens: auto; }
+  .tile small { display: block; color: var(--muted); font-size: 12.5px; font-weight: 500; margin-top: 2px; line-height: 1.35; }
+  .tile .st { margin-left: auto; flex: none; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-size: 15px; font-weight: 800; background: var(--soft); color: var(--accent-ink); }
+  .tile.on { border-color: var(--c); background: color-mix(in srgb, var(--c) 8%, var(--surface)); }
+  .tile.on .st { background: var(--c); color: #fff; }
+  .tile.shake { animation: shake .35s; }
+  @keyframes shake { 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
+  .hint { margin-top: 12px; min-height: 20px; font-size: 13.5px; font-weight: 700; color: var(--hot-ink); }
+  .custom { margin-top: 18px; padding: 18px; border-radius: 20px; background: var(--tldr); border: 1px solid var(--line); }
+  .custom h3 { font-size: 16px; font-weight: 800; }
+  .custom p { color: var(--ink-2); font-size: 13.5px; margin-top: 4px; font-weight: 500; }
+  .form { display: grid; grid-template-columns: 1fr 2fr auto; gap: 8px; margin-top: 12px; }
+  @media (max-width: 600px) { .form { grid-template-columns: 1fr; } }
+  .input { height: 44px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); padding: 0 14px; font-size: 14.5px; outline: none; transition: border-color .2s, box-shadow .2s; min-width: 0; }
+  .input::placeholder { color: var(--muted); }
+  .input:focus { border-color: #0EA5E9; box-shadow: 0 0 0 4px rgba(14,165,233,.18); }
+  .form .chip-btn { height: 44px; border-radius: 12px; }
+  .my-topics { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  .my-chip { height: 34px; padding: 0 6px 0 4px; border-radius: 9999px; display: inline-flex; align-items: center; gap: 4px; background: var(--surface); border: 1.5px solid var(--line); font-size: 13.5px; font-weight: 700; }
+  .my-chip.on { border-color: var(--c); }
+  .my-chip .tg { height: 26px; padding: 0 8px; border-radius: 9999px; display: inline-flex; align-items: center; gap: 6px; }
+  .my-chip .tg:hover { background: var(--soft); }
+  .my-chip .rm { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; color: var(--muted); }
+  .my-chip .rm:hover { background: #FEE2E2; color: #DC2626; }
+
+  /* ---------------- Крупнее на больших экранах ---------------- */
+  @media (min-width: 1320px) {
+    .hero { grid-template-columns: minmax(0, 1fr) 420px; padding-top: 44px; }
+    .hero h1 { font-size: clamp(44px, 3.4vw, 56px); }
+    .hero p { font-size: 16.5px; }
+    .weather { padding: 24px 26px; min-height: 210px; border-radius: 28px; }
+    .w-time { font-size: 48px; }
+    .w-icon { font-size: 62px; }
+    .w-temp { font-size: 34px; }
+    .w-city, .w-bottom { font-size: 14px; }
+
+    .pill { height: 48px; font-size: 15.5px; }
+    .pill .emo { width: 32px; height: 32px; font-size: 17px; }
+    .pills.grid2 .pill { font-size: 15px; }
+    .pills { gap: 12px; }
+
+    .section { margin-top: 36px; }
+    .section-head { margin-bottom: 18px; }
+    .section-head h2 { font-size: 27px; }
+    .section-icon { width: 44px; height: 44px; font-size: 22px; border-radius: 14px; }
+    .section-sub { margin-left: 56px; font-size: 14px; }
+    .grid { gap: 24px; }
+
+    .card { border-radius: 24px; }
+    .body { padding: 18px 20px 20px; gap: 10px; }
+    .meta { font-size: 13.5px; }
+    .title { font-size: 19px; line-height: 1.32; }
+    .badge { height: 26px; font-size: 12.5px; padding: 0 10px; }
+    .tag { top: 14px; left: 14px; height: 28px; font-size: 12.5px; }
+    .save-btn { top: 12px; right: 12px; width: 38px; height: 38px; }
+    .card.featured .media { min-height: 300px; }
+    .card.featured .body { padding: 24px 26px; }
+    .card.featured .title { font-size: 26px; }
+    .card.featured .lead { font-size: 15.5px; line-height: 1.55; }
+    .ph span { font-size: 54px; }
+    .more-btn { height: 44px; font-size: 15px; padding: 0 22px; }
+
+    .modal { max-width: 760px; }
+    .r-title { font-size: 28px; }
+    .reader-modal .r-title { font-size: 34px; }
+    .tldr li, .article p { font-size: 17px; }
+    .t-modal { max-width: 860px; }
+    footer { font-size: 14px; }
+  }
+
+  /* ---------------- Окно чтения: почти на всю страницу ----------------
+     Текст — в колонке удобной для чтения ширины, справа закреплённая панель действий. */
+  .modal.reader-modal { max-width: min(1320px, calc(100vw - 48px)); }
+  .reader-modal .r-hero .media { aspect-ratio: auto; height: clamp(200px, 32vh, 360px); max-height: none; }
+  .reader-modal .r-hero.small .media { height: 120px; }
+  @media (min-width: 1000px) {
+    .overlay:has(.reader-modal) { padding: 20px; }
+    .modal.reader-modal { max-height: calc(100vh - 40px); }
+    .reader-modal .r-body { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 48px; padding: 30px 44px 40px; align-items: start; }
+    .reader-modal .r-main { max-width: 780px; }
+    .reader-modal .r-side { position: sticky; top: 24px; display: flex; flex-direction: column; gap: 4px; }
+    .reader-modal .actions { flex-direction: column; margin-top: 0; }
+    .reader-modal .actions .btn { flex: none; width: 100%; }
+    .reader-modal .r-extra { flex-direction: column; }
+    .reader-modal .r-extra .ghost-btn { width: 100%; justify-content: center; height: 42px; border-radius: 12px; }
+    .reader-modal .also { padding-top: 18px; margin-top: 14px; border-top: 1px solid var(--line); }
+    .reader-modal .r-title { font-size: 32px; line-height: 1.2; margin-top: 12px; }
+    .reader-modal .article p { font-size: 17.5px; line-height: 1.78; margin-bottom: 18px; }
+    .reader-modal .tldr li { font-size: 16.5px; }
+  }
+  @media (min-width: 1500px) {
+    .reader-modal .r-body { grid-template-columns: minmax(0, 1fr) 320px; gap: 64px; padding: 36px 56px 48px; }
+    .reader-modal .r-main { max-width: 820px; }
+    .reader-modal .article p { font-size: 18px; }
+  }
+
+  /* ---------------- Поиск ---------------- */
+  .search-pill { flex: 1 1 auto; min-width: 0; max-width: 520px; margin: 0 auto; height: 40px; padding: 0 8px 0 14px; border-radius: 9999px;
+    display: flex; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--line);
+    color: var(--muted); font-size: 14px; font-weight: 600; text-align: left; transition: box-shadow .2s, border-color .2s, color .2s; }
+  .search-pill:hover { box-shadow: var(--shadow); color: var(--ink-2); border-color: color-mix(in srgb, var(--accent-ink) 30%, transparent); }
+  .search-pill .sp-text { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .search-pill svg { flex: none; }
+  kbd { font: 700 11px/1 "Manrope", sans-serif; padding: 5px 7px; border-radius: 7px; background: var(--soft); color: var(--muted); border: 1px solid var(--line); white-space: nowrap; }
+  @media (max-width: 720px) { .search-pill { flex: none; width: 38px; height: 38px; padding: 0; justify-content: center; margin: 0; } }
+
+  .search-overlay { align-items: flex-start; padding-top: 11vh; }
+  .modal.search-modal { max-width: 760px; overflow: hidden; display: flex; flex-direction: column; max-height: 78vh; border-radius: 24px;
+    background: color-mix(in srgb, var(--card) 92%, transparent); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); }
+  .s-input { display: flex; align-items: center; gap: 14px; padding: 0 14px 0 20px; height: 66px; border-bottom: 1px solid var(--line); flex: none; }
+  .s-ico { flex: none; color: #F97316; }
+  .s-input input { flex: 1; min-width: 0; height: 100%; border: 0; outline: 0; background: none; color: var(--ink); font-size: 18px; font-weight: 600; }
+  .s-input input::placeholder { color: var(--muted); font-weight: 500; }
+  .s-input input::-webkit-search-cancel-button { display: none; }
+  .s-esc { flex: none; font: 700 11px/1 "Manrope", sans-serif; padding: 6px 8px; border-radius: 8px; background: var(--soft); color: var(--muted); border: 1px solid var(--line); }
+  .s-spin { flex: none; width: 20px; height: 20px; border-radius: 50%; border: 2.5px solid var(--soft); border-top-color: #0EA5E9; animation: spin .8s linear infinite; }
+  .s-body { overflow-y: auto; padding: 10px 10px 14px; overscroll-behavior: contain; }
+  .s-body:empty { display: none; }
+  .s-label { display: flex; align-items: center; gap: 8px; padding: 12px 12px 6px; font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+  .s-label small { text-transform: none; letter-spacing: 0; font-weight: 600; opacity: .8; }
+  .s-res { width: 100%; display: flex; gap: 14px; align-items: flex-start; padding: 12px; border-radius: 14px; text-align: left; transition: background .15s; }
+  .s-res:hover, .s-res.sel { background: var(--soft); }
+  .s-fav { flex: none; width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; background: var(--surface-2); border: 1px solid var(--line); font-size: 18px; overflow: hidden; }
+  .s-fav img { width: 20px; height: 20px; }
+  .s-res .t { flex: 1; min-width: 0; }
+  .s-res b { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 15.5px; line-height: 1.32; color: var(--ink); }
+  .s-res .h { font-size: 12.5px; font-weight: 700; color: #16A34A; margin-top: 3px; }
+  :root[data-theme="dark"] .s-res .h { color: #4ADE80; }
+  .s-res p { margin-top: 3px; font-size: 13.5px; line-height: 1.45; color: var(--ink-2); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .s-chips { display: flex; flex-wrap: wrap; gap: 8px; padding: 4px 12px 8px; }
+  .s-chip { height: 34px; padding: 0 14px; border-radius: 9999px; display: inline-flex; align-items: center; gap: 6px; font-size: 13.5px; font-weight: 700;
+    color: var(--ink-2); background: var(--surface-2); border: 1px solid var(--line); transition: background .15s, color .15s; }
+  .s-chip:hover { background: var(--soft); color: var(--ink); }
+  .s-note { padding: 18px 14px; color: var(--ink-2); font-size: 14.5px; line-height: 1.55; }
+  .s-note a { color: var(--accent-ink); font-weight: 700; }
+  .s-skel { display: flex; gap: 14px; padding: 12px; }
+</style>
+</head>
+<body>
+<div class="blobs" aria-hidden="true"><div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div></div>
+
+<header class="header">
+  <div class="wrap">
+    <div class="head-left">
+      <a class="logo" href="#" id="logo" aria-label="Волна — на главную">
+        <span class="logo-mark">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round">
+            <path d="M2 15c2.2 0 2.2-2.4 4.4-2.4S8.6 15 10.8 15s2.2-2.4 4.4-2.4 2.2 2.4 4.4 2.4 2.2-2.4 2.4-2.4"/>
+            <path d="M2 9.5c2.2 0 2.2-2.4 4.4-2.4s2.2 2.4 4.4 2.4 2.2-2.4 4.4-2.4 2.2 2.4 4.4 2.4 2.2-2.4 2.4-2.4" opacity=".6"/>
+          </svg>
+        </span>
+        <span class="name">Волна</span>
+      </a>
+      <button id="homeBtn" class="chip-btn home" title="Домой — к началу ленты">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V9.5"/></svg>
+        <span class="lbl">Домой</span>
+      </button>
+    </div>
+    <button class="search-pill" id="searchPill" title="Поиск новостей и статей в интернете (Ctrl+K)" aria-label="Поиск">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <span class="lbl sp-text">Найти новость или обзор…</span>
+      <kbd class="lbl">Ctrl K</kbd>
+    </button>
+    <div class="head-right">
+      <div class="seg" id="regionSeg" role="radiogroup" aria-label="Источники">
+        <span class="thumb" id="segThumb"></span>
+        <button data-region="ru" role="radio" title="Русскоязычные источники">RU</button>
+        <button data-region="en" role="radio" title="Англоязычные источники">EN</button>
+        <button data-region="kz" role="radio" title="Источники Казахстана (на русском)">KZ</button>
+      </div>
+      <button id="savedBtn" class="chip-btn icon" title="Сохранённые новости" aria-label="Сохранённые новости">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M6 3.5h12a1 1 0 0 1 1 1V21l-7-4.5L5 21V4.5a1 1 0 0 1 1-1z"/></svg>
+      </button>
+      <button id="themeBtn" class="chip-btn icon" title="Сменить тему" aria-label="Сменить тему"></button>
+      <button id="refreshBtn" class="chip-btn primary refresh" title="Обновить ленту">
+        <svg id="refreshIcon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+        <span class="lbl">Обновить</span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <section class="hero" id="top">
+    <div>
+      <h1><span id="greet">Привет</span>,<br><span class="grad">вот что важно сегодня</span></h1>
+      <p><span id="regionLabel"></span><span class="dot">•</span><span id="status">загружаем…</span></p>
+    </div>
+    <aside class="weather" id="weather" aria-label="Погода и время">
+      <div class="w-row">
+        <div>
+          <div class="w-city">📍 <span id="wCity">Астана</span></div>
+          <div class="w-time" id="wTime">--:--</div>
+          <div class="w-date" id="wDate"></div>
+        </div>
+        <div>
+          <div class="w-icon" id="wIcon">🌤️</div>
+          <div class="w-temp" id="wTemp">…</div>
+        </div>
+      </div>
+      <div class="w-bottom" id="wBottom"><span class="desc">Загружаем погоду…</span></div>
+    </aside>
+  </section>
+
+  <div class="topics-bar">
+    <nav class="pills" id="pills" aria-label="Темы"></nav>
+  </div>
+
+  <main id="feed"></main>
+
+  <footer>
+    <details id="sources">
+      <summary>📡 <span id="srcSummary">Источники</span></summary>
+      <ul class="src-list" id="srcList"></ul>
+    </details>
+  </footer>
+</div>
+
+<nav class="rail" id="rail" aria-label="Перейти к теме"></nav>
+
+<button class="to-top" id="toTop" aria-label="Наверх" title="Наверх">
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>
+</button>
+
+<!-- Режим чтения -->
+<div id="reader" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="rTitle">
+  <article class="modal reader-modal">
+    <button class="close" data-close aria-label="Закрыть">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+    <div class="r-hero" id="rHero"></div>
+    <div class="r-body">
+      <div class="r-main">
+        <div class="r-top">
+          <div class="meta" id="rMeta"></div>
+          <button class="sum-btn hidden" id="rSumBtn" aria-expanded="false" title="Показать краткое содержание новости">✨ Кратко</button>
+        </div>
+        <h2 class="r-title" id="rTitle"></h2>
+        <div id="rContent"></div>
+      </div>
+      <aside class="r-side">
+        <div class="actions" id="rActions"></div>
+        <div class="also hidden" id="rAlso"><h4>Также пишут</h4><div class="row"></div></div>
+      </aside>
+    </div>
+  </article>
+</div>
+
+<!-- Поиск -->
+<div id="searchModal" class="overlay hidden search-overlay" role="dialog" aria-modal="true" aria-label="Поиск">
+  <div class="modal search-modal">
+    <form class="s-input" id="searchForm" autocomplete="off">
+      <svg class="s-ico" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input id="sq" type="search" enterkeyhint="search" placeholder="Что почитать? Например: обзор iPhone 18 Pro" maxlength="200" aria-label="Поисковый запрос">
+      <span class="s-spin hidden" id="sSpin"></span>
+      <button type="button" class="s-esc" data-close title="Закрыть">Esc</button>
+    </form>
+    <div class="s-body" id="sBody"></div>
+  </div>
+</div>
+
+<!-- Сохранённые -->
+<div id="savedModal" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="sTitle">
+  <div class="modal t-modal">
+    <button class="close" data-close aria-label="Закрыть">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+    <div class="t-body">
+      <h2 id="sTitle">Сохранённые</h2>
+      <div class="t-sub">Новости, которые вы отложили на потом. Хранятся в этом браузере.</div>
+      <div class="s-list" id="sList"></div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span></div>
+
+<!-- Каталог тем -->
+<div id="topicsModal" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="tTitle">
+  <div class="modal t-modal">
+    <button class="close" data-close aria-label="Закрыть">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+    <div class="t-body">
+      <h2 id="tTitle">Темы на главной</h2>
+      <div class="t-sub">Нажмите на тему, чтобы добавить её или убрать. <span class="counter" id="tCounter"></span></div>
+      <div class="t-grid" id="tGrid"></div>
+      <div class="hint" id="tHint" aria-live="polite"></div>
+      <div class="custom">
+        <h3>✨ Своя тема</h3>
+        <p>Название и ключевые слова через запятую. Начала слов тоже работают: «электромоб» найдёт «электромобиль».</p>
+        <form class="form" id="customForm" autocomplete="off">
+          <input class="input" id="cName" placeholder="Например: Apple" maxlength="30" required>
+          <input class="input" id="cKeys" placeholder="apple, iphone, macbook, ios" maxlength="300" required>
+          <button class="chip-btn primary" type="submit">Добавить</button>
+        </form>
+        <div class="my-topics" id="myTopics"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const STATE_VERSION = 2;
+  const CUSTOM_COLORS = ["#0EA5E9", "#14B8A6", "#6366F1", "#EC4899", "#F59E0B", "#10B981", "#8B5CF6", "#F43F5E"];
+  const CUSTOM_EMOJI = ["✨", "💡", "📌", "🌊", "⭐", "🔖", "🧭", "🎯"];
+  const REGION_LABEL = { ru: "Русскоязычные источники", en: "Англоязычные источники", kz: "Источники Казахстана" };
+
+  // ---------------- состояние (localStorage) ----------------
+  const store = {
+    get(key, fallback) { try { const v = JSON.parse(localStorage.getItem("volna." + key)); return v ?? fallback; } catch (_) { return fallback; } },
+    set(key, value) { try { localStorage.setItem("volna." + key, JSON.stringify(value)); } catch (_) {} },
+  };
+  // ---------------- API: сервер (python run.py) или статические файлы (GitHub Pages) ----------------
+  // На GitHub Pages сервера нет: новости собирает GitHub Actions раз в час и кладёт
+  // в data/*.json, а темы по ним раскладывает браузер — тем же алгоритмом, что и сервер.
+  const STATIC = !!window.VOLNA_STATIC;
+  const api = STATIC ? staticApi : (url, opts) => fetch(url, opts);
+  const reply = (data, ok = true) => ({ ok, status: ok ? 200 : 404, json: async () => data });
+  let staticStamp = 0;            // ≠0 — только что нажали «Обновить»: в обход кэша
+  let staticPools = {};
+  let staticTopics = new Set();
+  async function staticJson(path) {
+    const t = staticStamp || Math.floor(Date.now() / 300000);   // кэш браузера — до 5 минут
+    const res = await fetch(`data/${path}?t=${t}`);
+    if (!res.ok) throw new Error(res.status);
+    return res.json();
+  }
+  function regionData(rg) {
+    if (!staticPools[rg]) staticPools[rg] = staticJson(`news-${rg}.json`).catch((e) => { delete staticPools[rg]; throw e; });
+    return staticPools[rg];
+  }
+  function hotness(p, now) {
+    const ageH = Math.max(0, (now - p.created_at) / 3600);
+    return 3 * Math.exp(-ageH / 12) + 2.5 * (p.also || []).length
+      + 1.2 * Math.log10(1 + (p.comments_count || 0)) + 0.8 * Math.log10(1 + (p.score || 0)) + (p.weight || 0);
+  }
+  // Свои темы: та же логика ключевых слов, что в collector.custom_matcher.
+  function keywordMatcher(keywords) {
+    const W = "[\\p{L}\\p{N}_]";
+    const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const kws = String(keywords || "").split(/[,;\n]/).map((k) => k.trim().toLowerCase()).filter(Boolean);
+    if (!kws.length) return null;
+    const parts = kws.map((k) => `(?<!${W})` + k.split(/\s+/)
+      .map((w) => (w.endsWith("$") ? esc(w.slice(0, -1)) + `(?!${W})` : esc(w) + `${W}*`)).join("\\s+"));
+    try { return new RegExp(parts.join("|"), "iu"); } catch (_) { return null; }
+  }
+  // Порт collector.build_sections: каждая новость — в одной, самой подходящей теме.
+  function buildSections(pool, topicIds, customList, hiddenSet, limit) {
+    const now = Date.now() / 1000;
+    let items = pool.map((p) => ({ ...p, also: [...(p.also || [])] }));
+    if (hiddenSet.size) items = items.flatMap((p) => {
+      const alt = p.also.filter((a) => !hiddenSet.has(a.source));
+      if (!hiddenSet.has(p.source)) return [{ ...p, also: alt }];
+      return alt.length ? [{ ...p, source: alt[0].source, source_url: alt[0].url, also: alt.slice(1) }] : [];
+    });
+    for (const p of items) p.hot = Math.round(hotness(p, now) * 100) / 100;
+    items.sort((a, b) => b.hot - a.hot);
+    const byId = new Map(customList.map((c) => [String(c.id), c]));
+    const pats = new Map(topicIds.filter((t) => byId.has(t)).map((t) => [t, keywordMatcher(byId.get(t).keywords)]));
+    const buckets = new Map(topicIds.filter((t) => staticTopics.has(t) || pats.has(t)).map((t) => [t, []]));
+    for (const p of items) {
+      const text = p.title + " " + (p.summary || "").slice(0, 500);
+      let target = null;
+      for (const [tid, rx] of pats) if (rx && rx.test(text)) { target = tid; break; }
+      if (target === null) target = (p.topics || []).find((t) => buckets.has(t) && staticTopics.has(t)) ?? null;
+      if (target !== null && buckets.get(target).length < limit) buckets.get(target).push(p);
+    }
+    return [...buckets].map(([topic, its]) => ({ topic, items: its }));
+  }
+  const SEARCH_STOP = new Set("the and for with from this that what about after into than more how why это как что для все уже или его был была были будет может также теперь".split(" "));
+  function searchLocal(q, pool) {
+    const terms = [...new Set((q.toLowerCase().replace(/ё/g, "е").match(/[a-zа-я0-9]+(?:[.\-][a-zа-я0-9]+)*/g) || [])
+      .filter((t) => !SEARCH_STOP.has(t) && (t.length >= 3 || /^\d+$/.test(t))).map((t) => t.slice(0, 5)))];
+    if (!terms.length) return [];
+    const now = Date.now() / 1000, found = [];
+    for (const p of pool) {
+      const text = (p.title + " " + (p.summary || "").slice(0, 600)).toLowerCase().replace(/ё/g, "е");
+      const hits = terms.filter((t) => text.includes(t)).length;
+      if (hits === terms.length || (terms.length >= 3 && hits >= terms.length - 1)) found.push([hits, hotness(p, now), p]);
+    }
+    found.sort((a, b) => b[0] - a[0] || b[1] - a[1]);
+    return found.slice(0, 10).map((x) => x[2]);
+  }
+  async function staticWeather() {
+    const w = (await staticJson("meta.json")).weather || { city: "Астана", lat: 51.1694, lon: 71.4491, tz: "Asia/Almaty" };
+    const fail = { ok: false, city: w.city, utc_offset: 5 * 3600 };
+    try {
+      const res = await fetch("https://api.open-meteo.com/v1/forecast"
+        + `?latitude=${w.lat}&longitude=${w.lon}`
+        + "&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m,relative_humidity_2m,is_day"
+        + `&daily=temperature_2m_max,temperature_2m_min&forecast_days=1&wind_speed_unit=ms&timezone=${encodeURIComponent(w.tz)}`);
+      if (!res.ok) return fail;
+      const j = await res.json(), cur = j.current, daily = j.daily || {};
+      return { ok: true, city: w.city, temp: cur.temperature_2m, feels: cur.apparent_temperature, code: cur.weather_code,
+        is_day: !!cur.is_day, wind: cur.wind_speed_10m, humidity: cur.relative_humidity_2m,
+        tmax: (daily.temperature_2m_max || [null])[0], tmin: (daily.temperature_2m_min || [null])[0],
+        utc_offset: j.utc_offset_seconds ?? 5 * 3600 };
+    } catch (_) { return fail; }
+  }
+  async function staticApi(url) {
+    const [path, qs] = url.replace(/^\/api\//, "").split("?");
+    const params = new URLSearchParams(qs || "");
+    const parse = (s) => { try { const v = JSON.parse(s || "[]"); return Array.isArray(v) ? v : []; } catch (_) { return []; } };
+    if (path === "topics") {
+      const t = await staticJson("topics.json");
+      staticTopics = new Set(t.topics.map((x) => x.id));
+      return reply(t);
+    }
+    if (path === "news") {
+      const data = await regionData(params.get("region") || "ru");
+      const topicIds = (params.get("topics") || "").split(",").filter(Boolean);
+      const sections = buildSections(data.items, topicIds, parse(params.get("custom")),
+        new Set(parse(params.get("hide")).map(String)), data.per_topic || 9);
+      return reply({ sections, updated_at: data.updated_at, refreshing: false });
+    }
+    if (path === "sources") return reply(await staticJson("sources.json"));
+    if (path === "weather") return reply(await staticWeather());
+    if (path === "refresh") {
+      staticStamp = Date.now(); staticPools = {};
+      return reply({ ok: true });
+    }
+    if (path === "search") {
+      const q = params.get("q") || "";
+      const pools = await Promise.all(Object.keys(REGION_LABEL).map((rg) => regionData(rg).then((d) => d.items, () => [])));
+      return reply({ query: q, local: searchLocal(q, pools.flat()), web: [], engine: null, errors: [] });
+    }
+    const m = path.match(/^article\/(\d+)$/);
+    if (m) { try { return reply(await staticJson(`a/${m[1]}.json`)); } catch (_) { return reply(null, false); } }
+    return reply(null, false);   // /api/read и прочее, чему нужен сервер
+  }
+
+  const catalog = {};
+  let maxTopics = 12;
+  let myTopics = [];
+  let hidden = new Set(store.get("hidden", []));
+  let custom = store.get("custom", []);
+  let region = store.get("region", "ru");
+  if (!["ru", "en", "kz"].includes(region)) region = "ru";
+  let lastData = null;
+
+  // Прочитанное, сохранённое, скрытые источники — всё в браузере пользователя.
+  const DAY = 86400;
+  const keyOf = (it) => it.source_url || String(it.id);
+  let readMap = store.get("read", {});
+  for (const k of Object.keys(readMap)) if (Date.now() / 1000 - readMap[k] > 7 * DAY) delete readMap[k];
+  let saved = store.get("saved", []);
+  let hiddenSources = new Set(store.get("hiddenSources", []));
+  // «Новое с прошлого визита»: граница запоминается на всю вкладку, чтобы
+  // перезагрузка страницы не сбрасывала метки.
+  let prevSeen = null;
+  try {
+    const s = sessionStorage.getItem("volna.prevSeen");
+    if (s !== null) prevSeen = s === "" ? null : Number(s);
+    else {
+      prevSeen = store.get("seenAt", null);
+      sessionStorage.setItem("volna.prevSeen", prevSeen == null ? "" : String(prevSeen));
+    }
+  } catch (_) {}
+  store.set("seenAt", Math.floor(Date.now() / 1000));
+  const isRead = (it) => !!readMap[keyOf(it)];
+  const isNew = (it) => prevSeen != null && it.created_at > prevSeen && !isRead(it);
+  const isSaved = (it) => saved.some((x) => x.key === keyOf(it));
+  function saveExtras() { store.set("read", readMap); store.set("saved", saved); store.set("hiddenSources", [...hiddenSources]); }
+
+  // ---------------- уведомление ----------------
+  let toastTimer;
+  function toast(text, action, onAction) {
+    const t = $("toast");
+    const kids = [el("span", {}, text)];
+    if (action) kids.push(el("button", { onclick: () => { t.classList.remove("show"); onAction(); } }, action));
+    t.replaceChildren(...kids);
+    t.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove("show"), 5000);
+  }
+
+  function topicInfo(id) {
+    if (catalog[id]) return catalog[id];
+    const c = custom.find((x) => x.id === id);
+    return c ? { id: c.id, name: c.name, emoji: c.emoji, color: c.color, custom: true } : null;
+  }
+  function save() {
+    store.set("topics", myTopics); store.set("hidden", [...hidden]); store.set("custom", custom);
+    store.set("region", region); store.set("v", STATE_VERSION);
+  }
+
+  // ---------------- утилиты ----------------
+  function el(tag, attrs = {}, ...children) {
+    const n = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs)) {
+      if (v == null || v === false) continue;
+      if (k === "class") n.className = v;
+      else if (k === "style") n.style.cssText = v;
+      else if (k.startsWith("on")) n.addEventListener(k.slice(2), v);
+      else n.setAttribute(k, v);
+    }
+    for (const c of children.flat()) if (c != null && c !== false) n.append(c.nodeType ? c : document.createTextNode(c));
+    return n;
+  }
+  function plural(n, f) { const a = n % 10, b = n % 100; return a === 1 && b !== 11 ? f[0] : a >= 2 && a <= 4 && (b < 12 || b > 14) ? f[1] : f[2]; }
+  function timeAgo(ts) {
+    const s = Math.max(0, Date.now() / 1000 - ts);
+    if (s < 60) return "только что";
+    if (s < 3600) return `${Math.floor(s / 60)} мин назад`;
+    if (s < 86400) return `${Math.floor(s / 3600)} ч назад`;
+    const d = Math.floor(s / 86400); return `${d} ${plural(d, ["день", "дня", "дней"])} назад`;
+  }
+  function host(url) { try { return new URL(url).hostname.replace(/^www\./, ""); } catch (_) { return ""; } }
+  function placeholder(info) { return el("div", { class: "ph", style: `--c:${info.color}` }, el("span", {}, info.emoji)); }
+
+  // Картинка: если она маленькая или сильно другой формы — вписываем целиком
+  // поверх размытой копии (без растягивания и обрезки текста на картинке).
+  function media(item, info) {
+    const box = el("div", { class: "media", style: `--c:${info.color}` });
+    if (!item.image_url) { box.append(placeholder(info)); return box; }
+    const bg = el("img", { class: "bg", src: item.image_url, alt: "", "aria-hidden": "true", referrerpolicy: "no-referrer" });
+    const fg = el("img", { class: "fg", src: item.image_url, alt: "", loading: "lazy", referrerpolicy: "no-referrer" });
+    const decide = () => {
+      const w = fg.naturalWidth, h = fg.naturalHeight, bw = box.clientWidth, bh = box.clientHeight;
+      if (!w || !h || !bw || !bh) return;
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const tooSmall = w * 1.15 < bw * Math.min(dpr, 1.5) || h * 1.15 < bh;
+      const shapeOff = Math.abs(Math.log((w / h) / (bw / bh))) > 0.3;
+      box.classList.toggle("fit", tooSmall || shapeOff);
+      box.classList.toggle("tiny", w < bw * 0.5 && h < bh * 0.6);
+    };
+    fg.addEventListener("load", decide);
+    fg.addEventListener("error", () => { box.replaceChildren(placeholder(info)); }, { once: true });
+    box._decide = decide;
+    box.append(bg, fg);
+    return box;
+  }
+  let resizeTimer;
+  window.addEventListener("resize", () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => document.querySelectorAll(".media").forEach((m) => m._decide && m._decide()), 150);
+  });
+
+  function badges(item) {
+    const out = [];
+    const n = (item.also || []).length;
+    if (n) out.push(el("span", { class: "badge hot" }, `🔥 ещё ${n} ${plural(n, ["источник", "источника", "источников"])}`));
+    if (item.comments_count > 0) out.push(el("span", { class: "badge" }, `💬 ${item.comments_count.toLocaleString("ru-RU")}`));
+    return out;
+  }
+
+  // ---------------- плавная прокрутка наверх ----------------
+  let scrollAnim = null;
+  function scrollToTop() { scrollToY(0); }
+  function scrollToY(target) {
+    const start = window.scrollY;
+    target = Math.max(0, Math.min(target, document.documentElement.scrollHeight - innerHeight));
+    const dist = target - start;
+    if (Math.abs(dist) < 2) return;
+    cancelAnimationFrame(scrollAnim);
+    const duration = Math.min(650, 280 + Math.abs(dist) / 10);   // быстро, но без рывка
+    const t0 = performance.now();
+    const ease = (p) => (p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2); // easeInOutCubic
+    const stop = () => cancelAnimationFrame(scrollAnim);
+    window.addEventListener("wheel", stop, { once: true, passive: true });
+    window.addEventListener("touchstart", stop, { once: true, passive: true });
+    (function step(now) {
+      const p = Math.min(1, (now - t0) / duration);
+      window.scrollTo(0, Math.round(start + dist * ease(p)));
+      if (p < 1) scrollAnim = requestAnimationFrame(step);
+    })(t0);
+  }
+  const toTop = $("toTop");
+  let ticking = false;
+  window.addEventListener("scroll", () => {
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(() => {
+      toTop.classList.toggle("show", window.scrollY > 500);
+      $("rail").classList.toggle("show", window.scrollY > 380 && $("rail").childElementCount > 1);
+      ticking = false;
+    });
+  }, { passive: true });
+  toTop.addEventListener("click", scrollToTop);
+
+  function goHome(e) {
+    if (e) e.preventDefault();
+    document.querySelectorAll(".overlay.show").forEach(closeModal);
+    scrollToTop();
+    reload();
+  }
+  $("homeBtn").addEventListener("click", goHome);
+  $("logo").addEventListener("click", goHome);
+
+  // ---------------- тема ----------------
+  const SUN = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6l1.4 1.4M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4 6 18M18 6l1.4-1.4"/></svg>';
+  const MOON = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.5 14.5A8.5 8.5 0 0 1 9.5 3.5a8.5 8.5 0 1 0 11 11z"/></svg>';
+  function renderTheme() {
+    const dark = document.documentElement.dataset.theme === "dark";
+    $("themeBtn").innerHTML = dark ? SUN : MOON;
+    $("themeBtn").title = dark ? "Светлая тема" : "Тёмная тема";
+  }
+  $("themeBtn").addEventListener("click", () => {
+    const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+    document.documentElement.dataset.theme = next;
+    store.set("theme", next);
+    renderTheme();
+  });
+
+  // ---------------- регион ----------------
+  function renderRegion() {
+    const btns = [...$("regionSeg").querySelectorAll("button")];
+    btns.forEach((b) => { const on = b.dataset.region === region; b.classList.toggle("on", on); b.setAttribute("aria-checked", String(on)); });
+    const active = btns.find((b) => b.dataset.region === region);
+    const thumb = $("segThumb");
+    thumb.style.width = active.offsetWidth + "px";
+    thumb.style.transform = `translateX(${active.offsetLeft - 3}px)`;
+    $("regionLabel").textContent = REGION_LABEL[region];
+  }
+  $("regionSeg").addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-region]");
+    if (!b || b.dataset.region === region) return;
+    region = b.dataset.region; save(); renderRegion(); skeleton(); reload();
+  });
+
+  // ---------------- приветствие ----------------
+  function renderGreeting() {
+    const h = new Date().getHours();
+    $("greet").textContent = h < 5 ? "Доброй ночи" : h < 12 ? "Доброе утро" : h < 18 ? "Добрый день" : "Добрый вечер";
+  }
+
+  // ---------------- погода и время ----------------
+  const WMO = {
+    0: ["Ясно", "☀️", "🌙"], 1: ["Малооблачно", "🌤️", "🌙"], 2: ["Переменная облачность", "⛅", "☁️"], 3: ["Пасмурно", "☁️", "☁️"],
+    45: ["Туман", "🌫️"], 48: ["Изморозь", "🌫️"], 51: ["Лёгкая морось", "🌦️"], 53: ["Морось", "🌦️"], 55: ["Сильная морось", "🌧️"],
+    56: ["Ледяная морось", "🌧️"], 57: ["Ледяная морось", "🌧️"], 61: ["Небольшой дождь", "🌦️"], 63: ["Дождь", "🌧️"], 65: ["Ливень", "🌧️"],
+    66: ["Ледяной дождь", "🌧️"], 67: ["Ледяной дождь", "🌧️"], 71: ["Небольшой снег", "🌨️"], 73: ["Снег", "🌨️"], 75: ["Сильный снег", "❄️"],
+    77: ["Снежная крупа", "🌨️"], 80: ["Ливень", "🌦️"], 81: ["Ливень", "🌧️"], 82: ["Сильный ливень", "⛈️"], 85: ["Снегопад", "🌨️"],
+    86: ["Сильный снегопад", "❄️"], 95: ["Гроза", "⛈️"], 96: ["Гроза с градом", "⛈️"], 99: ["Гроза с градом", "⛈️"],
+  };
+  function weatherGradient(code, isDay) {
+    if (!isDay) return "linear-gradient(135deg, #1E3A8A 0%, #0B1638 100%)";
+    if (code >= 95) return "linear-gradient(135deg, #52607E 0%, #1F2A44 100%)";
+    if ((code >= 71 && code <= 77) || code === 85 || code === 86) return "linear-gradient(135deg, #8DB8F0 0%, #4F7FD9 100%)";
+    if (code >= 51) return "linear-gradient(135deg, #5B7DB1 0%, #2C4A7A 100%)";
+    if (code >= 2) return "linear-gradient(135deg, #79A3D1 0%, #3567B5 100%)";
+    return "linear-gradient(135deg, #38BDF8 0%, #2563EB 100%)";
+  }
+  let utcOffset = 5 * 3600; // Казахстан: UTC+5
+  function fmtTemp(t) { const r = Math.round(t); return (r > 0 ? "+" : r < 0 ? "−" : "") + Math.abs(r) + "°"; }
+  function tickClock() {
+    const local = new Date(Date.now() + utcOffset * 1000);
+    const hh = String(local.getUTCHours()).padStart(2, "0"), mm = String(local.getUTCMinutes()).padStart(2, "0");
+    $("wTime").replaceChildren(hh, el("span", { class: "colon" }, ":"), mm);
+    const d = local.toLocaleDateString("ru-RU", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
+    $("wDate").textContent = d.charAt(0).toUpperCase() + d.slice(1) + " · местное время";
+  }
+  async function loadWeather() {
+    try {
+      const w = await (await api("/api/weather")).json();
+      if (w.utc_offset != null) utcOffset = w.utc_offset;
+      $("wCity").textContent = w.city || "Астана";
+      tickClock();
+      if (!w.ok) { $("wTemp").textContent = ""; $("wBottom").replaceChildren(el("span", { class: "desc" }, "Погода временно недоступна")); return; }
+      const [desc, dayIcon, nightIcon] = WMO[w.code] || ["", "🌡️"];
+      $("wIcon").textContent = !w.is_day && nightIcon ? nightIcon : dayIcon;
+      $("wTemp").textContent = fmtTemp(w.temp);
+      $("weather").style.setProperty("--w-grad", weatherGradient(w.code, w.is_day));
+      const parts = [el("span", { class: "desc" }, `${desc}, ощущается ${fmtTemp(w.feels)}`)];
+      if (w.tmax != null) parts.push(el("span", {}, `↑${fmtTemp(w.tmax)} ↓${fmtTemp(w.tmin)}`));
+      parts.push(el("span", {}, `💨 ${Math.round(w.wind)} м/с`), el("span", {}, `💧 ${w.humidity}%`));
+      $("wBottom").replaceChildren(...parts);
+    } catch (_) {
+      $("wBottom").replaceChildren(el("span", { class: "desc" }, "Погода временно недоступна"));
+    }
+  }
+
+  // ---------------- панель тем ----------------
+  function removeTopic(id, node) {
+    const idx = myTopics.indexOf(id);
+    if (idx < 0) return;
+    const t = topicInfo(id);
+    const wasHidden = hidden.has(id);
+    const done = () => {
+      myTopics = myTopics.filter((x) => x !== id); hidden.delete(id);
+      save(); renderPills(); reload();
+      toast(`Тема «${t ? t.name : id}» убрана`, "Вернуть", () => {
+        if (myTopics.includes(id) || myTopics.length >= maxTopics) return;
+        myTopics.splice(Math.min(idx, myTopics.length), 0, id);
+        if (wasHidden) hidden.add(id);
+        save(); renderPills(); reload();
+      });
+    };
+    if (node) { node.classList.add("leaving"); setTimeout(done, 200); } else done();
+  }
+
+  function renderPills() {
+    const pills = myTopics.map((id) => {
+      const t = topicInfo(id);
+      if (!t) return null;
+      const on = !hidden.has(id);
+      const label = t.short || t.name;
+      const pill = el("div", {
+        class: "pill" + (on ? " active" : ""), style: `--c:${t.color}`, "aria-pressed": String(on), role: "button", tabindex: "0",
+        title: (on ? "Скрыть" : "Показать") + ` «${t.name}»`,
+      }, el("span", { class: "emo" }, t.emoji), el("span", { class: "nm" }, label));
+      const x = el("span", { class: "pill-x", role: "button", tabindex: "0", title: `Убрать тему «${t.name}»`, "aria-label": `Убрать тему ${t.name}` }, "×");
+      pill.append(x);
+      // Крестик проявляется, когда курсор у правого края кнопки.
+      pill.addEventListener("mousemove", (e) => {
+        const r = pill.getBoundingClientRect();
+        pill.classList.toggle("x-near", e.clientX > r.right - 44);
+      });
+      pill.addEventListener("mouseleave", () => pill.classList.remove("x-near"));
+      pill.addEventListener("click", (e) => {
+        if (e.target.closest(".pill-x")) { e.stopPropagation(); removeTopic(id, pill); return; }
+        on ? hidden.add(id) : hidden.delete(id); save(); renderPills(); reload();
+      });
+      pill.addEventListener("keydown", (e) => {
+        if ((e.key === "Enter" || e.key === " ") && e.target === pill) { e.preventDefault(); pill.click(); }
+        if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); removeTopic(id, pill); }
+      });
+      x.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); removeTopic(id, pill); } });
+      return pill;
+    }).filter(Boolean);
+    pills.push(el("button", { class: "pill add", title: "Добавить, убрать или создать свою тему", onclick: openTopics }, el("b", {}, "+"), "Темы"));
+    const nav = $("pills");
+    // Больше 7 кнопок — раскладываем ровно в два ряда.
+    nav.classList.toggle("grid2", pills.length > 7);
+    nav.style.setProperty("--cols", String(Math.ceil(pills.length / 2)));
+    nav.replaceChildren(...pills);
+  }
+
+  // ---------------- лента ----------------
+  function skeleton() {
+    const card = () => el("div", { class: "card", style: "pointer-events:none" },
+      el("div", { class: "media skeleton", style: "border-radius:0" }),
+      el("div", { class: "body" }, el("div", { class: "skeleton", style: "height:11px;width:40%" }),
+        el("div", { class: "skeleton", style: "height:15px;width:95%" }), el("div", { class: "skeleton", style: "height:15px;width:70%" })));
+    $("feed").replaceChildren(el("section", { class: "section" }, el("div", { class: "grid" }, ...Array.from({ length: 6 }, card))));
+  }
+
+  const BOOKMARK = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M6 3.5h12a1 1 0 0 1 1 1V21l-7-4.5L5 21V4.5a1 1 0 0 1 1-1z"/></svg>';
+
+  function card(item, info, featured) {
+    const m = media(item, info);
+    m.append(el("span", { class: "tag", style: `--c:${info.color}` }, el("i"), info.name));
+    const b = badges(item);
+    if (isNew(item)) b.unshift(el("span", { class: "badge new" }, "● Новое"));
+    const save = el("button", { class: "save-btn" + (isSaved(item) ? " on" : ""), "aria-label": "Сохранить на потом", title: "Сохранить на потом" });
+    save.innerHTML = BOOKMARK;
+    save.addEventListener("click", (e) => { e.stopPropagation(); toggleSave(item, info); });
+    const node = el("article", {
+        class: "card" + (featured ? " featured" : "") + (isRead(item) ? " read" : ""),
+        tabindex: "0", role: "button", "data-key": keyOf(item), "aria-label": item.title,
+        onclick: () => openReader(item, info),
+        onkeydown: (e) => { if ((e.key === "Enter" || e.key === " ") && e.target === e.currentTarget) { e.preventDefault(); openReader(item, info); } },
+      },
+      m, save,
+      el("div", { class: "body" },
+        el("div", { class: "meta" }, el("span", { class: "src" }, item.source || host(item.source_url)), el("span", {}, "·"),
+          el("span", {}, timeAgo(item.created_at)), isRead(item) ? el("span", { class: "seen" }, "· ✓ прочитано") : null),
+        el("h3", { class: "title" }, item.title),
+        featured && item.summary ? el("p", { class: "lead" }, item.summary.slice(0, 320)) : null,
+        b.length ? el("div", { class: "foot" }, ...b) : null));
+    return node;
+  }
+
+  function cardsFor(item) { return [...document.querySelectorAll("#feed .card")].filter((c) => c.dataset.key === keyOf(item)); }
+
+  // ---------------- прочитанное ----------------
+  function markRead(item) {
+    if (isRead(item)) return;
+    readMap[keyOf(item)] = Math.floor(Date.now() / 1000);
+    saveExtras();
+    for (const c of cardsFor(item)) {
+      c.classList.add("read");
+      c.querySelector(".badge.new")?.remove();
+      const meta = c.querySelector(".meta");
+      if (meta && !meta.querySelector(".seen")) meta.append(el("span", { class: "seen" }, "· ✓ прочитано"));
+    }
+    if (lastData) updateStatus(lastData);
+  }
+  function allVisibleItems() { return lastData ? lastData.sections.flatMap((s) => s.items) : []; }
+  function markAllRead() {
+    const now = Math.floor(Date.now() / 1000);
+    for (const it of allVisibleItems()) readMap[keyOf(it)] = readMap[keyOf(it)] || now;
+    saveExtras();
+    renderFeed(lastData); updateStatus(lastData);
+    toast("Все новости отмечены прочитанными");
+  }
+
+  // ---------------- сохранённое ----------------
+  function toggleSave(item, info, opts = {}) {
+    const k = keyOf(item);
+    const was = isSaved(item);
+    if (was) saved = saved.filter((x) => x.key !== k);
+    else {
+      const snap = { key: k, savedAt: Math.floor(Date.now() / 1000), topic: info.id || null,
+        info: { name: info.name, emoji: info.emoji, color: info.color }, item: { ...item } };
+      // Если новость открыта — сохраняем и её текст: он останется, даже когда новость уйдёт из ленты.
+      if (currentArticle && currentArticle.key === k && currentArticle.content) {
+        snap.content = currentArticle.content.slice(0, 16000); snap.tldr = currentArticle.tldr;
+      }
+      saved.unshift(snap);
+    }
+    saveExtras();
+    renderSavedCount();
+    for (const c of cardsFor(item)) {
+      const btn = c.querySelector(".save-btn");
+      btn.classList.toggle("on", !was);
+      btn.classList.remove("pop"); void btn.offsetWidth; if (!was) btn.classList.add("pop");
+    }
+    if (opts.quiet) return;
+    if (!was) toast("Сохранено на потом", "Открыть", openSaved);
+    else toast("Убрано из сохранённых", "Вернуть", () => toggleSave(item, info, { quiet: true }));
+    if (!$("savedModal").classList.contains("hidden")) renderSaved();
+    if (!$("reader").classList.contains("hidden")) renderReaderExtra(item, info);
+  }
+  function renderSavedCount() {
+    const btn = $("savedBtn");
+    btn.querySelector(".cnt")?.remove();
+    if (saved.length) btn.append(el("span", { class: "cnt" }, String(saved.length)));
+  }
+  function renderSaved() {
+    const list = $("sList");
+    if (!saved.length) {
+      list.replaceChildren(el("div", { class: "empty" }, "Пока пусто. Нажмите на значок закладки на карточке или в окне новости, чтобы отложить её на потом."));
+      return;
+    }
+    list.replaceChildren(...saved.map((s) => {
+      const info = topicInfo(s.topic) || s.info;
+      const rm = el("button", { class: "rm", "aria-label": "Убрать из сохранённых", title: "Убрать" }, "×");
+      rm.addEventListener("click", (e) => { e.stopPropagation(); toggleSave(s.item, info); });
+      const row = el("div", { class: "s-row", tabindex: "0", role: "button" },
+        media(s.item, info),
+        el("div", { class: "txt" },
+          el("div", { class: "meta" }, el("span", { class: "src" }, s.item.source || host(s.item.source_url)), el("span", {}, "·"), el("span", {}, `сохранено ${timeAgo(s.savedAt)}`)),
+          el("b", {}, s.item.title)),
+        rm);
+      const open = () => { closeModal($("savedModal")); setTimeout(() => openReader(s.item, info), 120); };
+      row.addEventListener("click", open);
+      row.addEventListener("keydown", (e) => { if (e.key === "Enter") open(); });
+      return row;
+    }));
+  }
+  function openSaved() { renderSaved(); openModal("savedModal"); }
+  $("savedBtn").addEventListener("click", openSaved);
+
+  // ---------------- скрытые источники ----------------
+  function hideSource(name) {
+    hiddenSources.add(name); saveExtras();
+    closeModal($("reader"));
+    reload(); loadSources();
+    toast(`Новости «${name}» скрыты`, "Отменить", () => unhideSource(name));
+  }
+  function unhideSource(name) {
+    hiddenSources.delete(name); saveExtras();
+    reload(); loadSources();
+  }
+
+  function visibleTopics() { return myTopics.filter((id) => !hidden.has(id) && topicInfo(id)); }
+
+  const SHOW_FIRST = 3;            // сколько новостей темы видно сразу
+  const expanded = new Set();     // раскрытые темы (до перезагрузки страницы)
+
+  function emptyText(info) {
+    if (info.custom) return "По этим ключевым словам за последние сутки ничего не нашлось. Попробуйте добавить синонимы.";
+    return region === "kz" ? "В казахстанских источниках по этой теме за сутки пока ничего." : "За последние сутки в этой теме пока тихо.";
+  }
+  const isRich = (it) => it && it.image_url && (it.summary || "").length > 60;
+
+  function renderFeed(data) {
+    const feed = $("feed");
+    if (!visibleTopics().length) {
+      renderRail([]);
+      return feed.replaceChildren(el("div", { class: "empty empty-big" }, el("div", { class: "emoji" }, "🌊"),
+        "Все темы выключены. Нажмите на тему вверху или добавьте новую через «+»."));
+    }
+    const total = data.sections.reduce((s, x) => s + x.items.length, 0);
+    if (!total && !data.updated_at) {
+      renderRail([]);
+      const busy = data.refreshing || refreshing;
+      return feed.replaceChildren(el("div", { class: "empty empty-big" }, el("div", { class: "emoji" }, "🫧"),
+        busy ? "Собираем новости из источников — это займёт около минуты…" : "Лента пока пуста.",
+        busy ? null : el("div", { style: "margin-top:14px" }, el("button", { class: "chip-btn primary", onclick: doRefresh }, "Собрать новости"))));
+    }
+
+    // «Главное сейчас»: по одной самой горячей новости из каждой темы — чтобы сразу
+    // видеть все темы, а не листать до седьмой.
+    const sections = data.sections.filter((sec) => topicInfo(sec.topic));
+    let highlights = [];
+    if (sections.filter((s) => s.items.length).length >= 2) {
+      highlights = sections.filter((s) => s.items.length).map((s) => ({ item: s.items[0], topic: s.topic }))
+        .sort((a, b) => (b.item.hot || 0) - (a.item.hot || 0)).slice(0, 6);
+    }
+    const shown = new Set(highlights.map((h) => h.item.id));
+
+    const blocks = [];
+    const railItems = [];
+    if (highlights.length) {
+      // Если у самой горячей есть картинка и текст — делаем её широкой (она занимает 2 места).
+      const featured = isRich(highlights[0].item);
+      const list = featured ? highlights.slice(0, 5) : highlights;
+      for (const h of highlights.slice(list.length)) shown.delete(h.item.id);
+      blocks.push(el("section", { class: "section highlights", id: "sec-top" },
+        el("div", { class: "section-head" }, el("span", { class: "section-icon" }, "⭐"), el("h2", {}, "Главное сейчас")),
+        el("p", { class: "section-sub" }, "самое обсуждаемое из каждой темы"),
+        el("div", { class: "grid" }, ...list.map((h, i) => card(h.item, topicInfo(h.topic), featured && i === 0)))));
+      railItems.push({ id: "sec-top", emoji: "⭐", name: "Главное", color: "#0EA5E9" });
+    }
+
+    for (const sec of sections) {
+      const info = topicInfo(sec.topic);
+      const items = sec.items.filter((it) => !shown.has(it.id));
+      const id = "sec-" + sec.topic;
+      const n = sec.items.length;
+      railItems.push({ id, emoji: info.emoji, name: info.name, color: info.color });
+      const head = el("div", { class: "section-head", style: `--c:${info.color}` },
+        el("span", { class: "section-icon" }, info.emoji), el("h2", {}, info.name),
+        el("span", { class: "count" }, n ? `${n} ${plural(n, ["новость", "новости", "новостей"])}` : ""));
+      let body;
+      if (!n) body = el("div", { class: "empty" }, emptyText(info));
+      else if (!items.length) body = el("div", { class: "empty" }, "Главная новость темы — в блоке «Главное сейчас» выше.");
+      else {
+        const grid = el("div", { class: "grid" });
+        const open = expanded.has(sec.topic);
+        const first = open ? items : items.slice(0, SHOW_FIRST);
+        grid.append(...first.map((it) => card(it, info, false)));
+        body = [grid];
+        const rest = items.length - SHOW_FIRST;
+        if (rest > 0) {
+          const btn = el("button", { class: "more-btn", style: `--c:${info.color}` });
+          const setLabel = (o) => btn.replaceChildren(el("i", {}, o ? "↑" : `+${rest}`),
+            o ? "Свернуть" : `Ещё ${rest} ${plural(rest, ["новость", "новости", "новостей"])}`);
+          setLabel(open);
+          btn.addEventListener("click", () => {
+            if (expanded.has(sec.topic)) {
+              expanded.delete(sec.topic);
+              [...grid.children].slice(SHOW_FIRST).forEach((c) => c.remove());
+              setLabel(false);
+              const top = document.getElementById(id).getBoundingClientRect().top;
+              if (top < 0) scrollToY(window.scrollY + top - 90);
+            } else {
+              expanded.add(sec.topic);
+              grid.append(...items.slice(SHOW_FIRST).map((it) => { const c = card(it, info, false); c.classList.add("appear"); return c; }));
+              setLabel(true);
+            }
+          });
+          body.push(el("div", { class: "more-row" }, btn));
+        }
+      }
+      blocks.push(el("section", { class: "section", id }, head, ...[].concat(body)));
+    }
+    feed.replaceChildren(...blocks);
+    renderRail(railItems);
+  }
+
+  // ---------------- закладки слева ----------------
+  let spy = null, spyLockUntil = 0;
+  function setRailActive(id) {
+    const rail = $("rail");
+    rail.querySelectorAll("a").forEach((a) => a.classList.toggle("on", a.dataset.target === id));
+    const on = rail.querySelector("a.on");
+    if (on && rail.scrollWidth > rail.clientWidth) rail.scrollTo({ left: on.offsetLeft - rail.clientWidth / 2 + on.offsetWidth / 2, behavior: "smooth" });
+  }
+  // Внизу страницы последние темы не могут доехать до верха — подсвечиваем последнюю.
+  window.addEventListener("scroll", () => {
+    if (performance.now() < spyLockUntil) return;
+    if (innerHeight + scrollY >= document.documentElement.scrollHeight - 4) {
+      const last = [...document.querySelectorAll("#feed .section")].pop();
+      if (last) setRailActive(last.id);
+    }
+  }, { passive: true });
+  function renderRail(items) {
+    const rail = $("rail");
+    rail.replaceChildren(...items.map((r) => {
+      const a = el("a", { href: "#" + r.id, style: `--c:${r.color}`, "aria-label": r.name, "data-target": r.id },
+        r.emoji, el("span", { class: "tip" }, r.name));
+      a.addEventListener("click", (e) => {
+        e.preventDefault();
+        const sec = document.getElementById(r.id);
+        if (!sec) return;
+        const offset = parseFloat(getComputedStyle(sec).scrollMarginTop) || 80;
+        setRailActive(r.id);
+        spyLockUntil = performance.now() + 900;
+        scrollToY(window.scrollY + sec.getBoundingClientRect().top - offset);
+      });
+      return a;
+    }));
+    rail.classList.toggle("show", window.scrollY > 380 && items.length > 1);
+    if (spy) spy.disconnect();
+    spy = new IntersectionObserver((entries) => {
+      if (performance.now() < spyLockUntil) return;
+      for (const e of entries) if (e.isIntersecting) setRailActive(e.target.id);
+    }, { rootMargin: "-35% 0px -60% 0px" });
+    document.querySelectorAll("#feed .section").forEach((sec) => spy.observe(sec));
+  }
+
+  function updateStatus(data) {
+    const items = data.sections.flatMap((s) => s.items);
+    const total = items.length;
+    const st = $("status");
+    if (data.refreshing || refreshing) return st.replaceChildren("собираем свежие новости…");
+    if (!data.updated_at) return st.replaceChildren("ещё не обновлялось");
+    const parts = [`обновлено ${timeAgo(data.updated_at)} · ${total} ${plural(total, ["новость", "новости", "новостей"])}`];
+    const fresh = items.filter(isNew).length;
+    if (fresh) parts.push(` · ${fresh} ${plural(fresh, ["новая", "новые", "новых"])} с прошлого визита`);
+    const unread = items.filter((it) => !isRead(it)).length;
+    if (unread && total) parts.push(" · ", el("span", { class: "status-link", role: "button", tabindex: "0", onclick: markAllRead }, "отметить всё прочитанным"));
+    st.replaceChildren(...parts);
+  }
+
+  let loadSeq = 0, pollTimer = null;
+  async function load() {
+    const seq = ++loadSeq;
+    const visible = visibleTopics();
+    const params = new URLSearchParams({
+      topics: visible.join(","), region,
+      custom: JSON.stringify(custom.filter((c) => visible.includes(c.id)).map((c) => ({ id: c.id, keywords: c.keywords }))),
+      hide: JSON.stringify([...hiddenSources]),
+    });
+    const res = await api("/api/news?" + params);
+    if (!res.ok) throw new Error(res.status);
+    const data = await res.json();
+    if (seq !== loadSeq) return data;
+    lastData = data;
+    updateStatus(data);
+    renderFeed(data);
+    clearTimeout(pollTimer);
+    if (data.refreshing && !refreshing) pollTimer = setTimeout(() => load().then(loadSources).catch(() => {}), 5000);
+    return data;
+  }
+  function reload() { load().catch(() => {}); }
+
+  async function loadSources() {
+    try {
+      const data = await (await api("/api/sources")).json();
+      const feeds = data.feeds || [];
+      if (!feeds.length) { $("srcSummary").textContent = "Источники ещё не опрашивались"; return; }
+      const ok = feeds.filter((f) => f.ok).length;
+      $("srcSummary").textContent = `Источники: ответили ${ok} из ${feeds.length}` + (data.checked_at ? ` · ${timeAgo(data.checked_at)}` : "")
+        + (hiddenSources.size ? ` · скрыто ${hiddenSources.size}` : "");
+      const order = { kz: 0, ru: 1, en: 2 };
+      const names = new Set(feeds.map((f) => f.name));
+      // Скрытые источники, которых нет в списке лент (например, переименованные), тоже можно вернуть.
+      const extra = [...hiddenSources].filter((n) => !names.has(n)).map((n) => ({ name: n, ok: true, count: 0, region: "", orphan: true }));
+      $("srcList").replaceChildren(...[...feeds, ...extra].sort((a, b) => b.ok - a.ok || (order[a.region] ?? 3) - (order[b.region] ?? 3) || a.name.localeCompare(b.name)).map((f) => {
+        const off = hiddenSources.has(f.name);
+        const tg = el("button", { class: "tg" }, off ? "вернуть" : "скрыть");
+        tg.addEventListener("click", () => (off ? unhideSource(f.name) : hideSource(f.name)));
+        return el("li", { class: off ? "off" : "", title: f.error || f.url || "" },
+          el("span", { class: f.ok ? "ok" : "bad" }, f.ok ? "✓" : "✕"),
+          f.region ? el("span", { class: "rg" }, f.region.toUpperCase()) : null,
+          el("span", {}, f.name),
+          el("small", {}, off ? "скрыт" : f.orphan ? "" : f.ok ? `${f.count} шт.` : (f.error || "ошибка")),
+          tg);
+      }));
+    } catch (_) {}
+  }
+
+  // ---------------- обновление ----------------
+  let refreshing = false;
+  async function doRefresh() {
+    if (refreshing) return;
+    refreshing = true;
+    $("refreshBtn").disabled = true; $("refreshIcon").classList.add("spin");
+    $("status").textContent = "собираем свежие новости…";
+    if (!lastData || !lastData.sections.some((s) => s.items.length)) skeleton();
+    try {
+      const stats = await (await api("/api/refresh", { method: "POST" })).json();
+      refreshing = false;
+      const before = lastData && lastData.updated_at;
+      const data = await load();
+      if (!stats.ok) $("status").textContent = "источники не ответили — проверьте интернет";
+      else if (STATIC && data && data.updated_at && data.updated_at === before)
+        $("status").replaceChildren(`обновлено ${timeAgo(data.updated_at)} · новости собираются автоматически раз в час`);
+    } catch (_) {
+      $("status").textContent = "не удалось обновить";
+    } finally {
+      refreshing = false; $("refreshBtn").disabled = false; $("refreshIcon").classList.remove("spin");
+      loadSources();
+    }
+  }
+  $("refreshBtn").addEventListener("click", doRefresh);
+  if (STATIC) $("refreshBtn").title = "Проверить, нет ли свежих новостей";
+  // Статическая версия: вкладка открыта долго — подхватываем новый выпуск (собирается раз в час).
+  async function checkStaticUpdate() {
+    if (document.hidden || refreshing) return;
+    try {
+      staticStamp = Date.now();
+      const meta = await staticJson("meta.json");
+      if (meta.updated_at && lastData && meta.updated_at !== lastData.updated_at) { staticPools = {}; await load(); loadSources(); }
+    } catch (_) {}
+  }
+  document.addEventListener("visibilitychange", () => { if (STATIC && !document.hidden) checkStaticUpdate(); });
+
+  // ---------------- модальные окна ----------------
+  let lastFocus = null;
+  function openModal(id) {
+    lastFocus = document.activeElement;
+    const ov = $(id);
+    ov.classList.remove("hidden");
+    document.body.classList.add("locked");
+    ov.querySelector(".modal").scrollTop = 0;
+    requestAnimationFrame(() => ov.classList.add("show"));
+    (ov.querySelector("[data-autofocus]") || ov.querySelector("[data-close]")).focus({ preventScroll: true });
+  }
+  let readerFromSearch = false;
+  function closeModal(ov) {
+    if (!ov || ov.classList.contains("hidden")) return;
+    // Новость открыли из поиска — после закрытия возвращаемся к результатам.
+    if (ov.id === "reader" && readerFromSearch) {
+      readerFromSearch = false;
+      ov.classList.remove("show"); delete ov.dataset.id;
+      setTimeout(() => { ov.classList.add("hidden"); openSearch(true); }, 180);
+      return;
+    }
+    ov.classList.remove("show");
+    delete ov.dataset.id;
+    setTimeout(() => ov.classList.add("hidden"), 200);
+    if (!document.querySelector(".overlay.show")) document.body.classList.remove("locked");
+    if (lastFocus) lastFocus.focus({ preventScroll: true });
+  }
+  document.querySelectorAll(".overlay").forEach((ov) => {
+    ov.addEventListener("click", (e) => { if (e.target === ov || e.target.closest("[data-close]")) closeModal(ov); });
+  });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") document.querySelectorAll(".overlay.show").forEach(closeModal); });
+
+  // ---------------- режим чтения ----------------
+  function setReaderHero(item, info) {
+    const hero = $("rHero");
+    hero.className = "r-hero" + (item.image_url ? "" : " small");
+    hero.replaceChildren(media(item, info));
+  }
+  let currentArticle = null;   // текст открытой новости — для сохранения «на потом»
+  function setSummaryOpen(open) {
+    const sum = $("rSummary"), btn = $("rSumBtn");
+    if (!sum) return;
+    sum.classList.toggle("open", open);
+    btn.classList.toggle("on", open);
+    btn.setAttribute("aria-expanded", String(open));
+    btn.textContent = open ? "✕ Скрыть кратко" : "✨ Кратко";
+  }
+  $("rSumBtn").addEventListener("click", () => setSummaryOpen(!$("rSummary").classList.contains("open")));
+
+  // Картинка внутри статьи приходит отдельной строкой: «![подпись](https://…)».
+  const IMG_LINE = /^!\[([^\]\n]*)\]\((https?:\/\/[^\s)]+)\)$/;
+  function articleBlock(p) {
+    const m = p.match(IMG_LINE);
+    if (!m) return el("p", {}, p);
+    const alt = m[1].trim(), src = m[2];
+    const fig = el("figure", {});
+    const img = el("img", { src, alt, loading: "lazy", decoding: "async", referrerpolicy: "no-referrer",
+      onerror: () => fig.remove(),                                  // сайт не отдал картинку — молча убираем
+      onload: () => { if (img.naturalWidth < 120 || img.naturalHeight < 60) fig.remove(); } });   // иконки и пиксели
+    fig.append(el("a", { href: src, target: "_blank", rel: "noopener noreferrer", title: "Открыть картинку целиком" }, img));
+    // Подпись показываем, только если это осмысленный текст, а не имя файла
+    if (alt.length > 3 && !/\.(jpe?g|png|webp|gif|avif)$/i.test(alt) && !/^(image|img|photo|фото)\s*\d*$/i.test(alt))
+      fig.append(el("figcaption", {}, alt));
+    return fig;
+  }
+  function renderReaderBody(data, item) {
+    const box = $("rContent");
+    const tldr = (data && data.tldr) || [];
+    const content = (data && data.content) || "";
+    currentArticle = { key: keyOf(item), tldr, content };
+    const paras = content.split(/\n+/).map((p) => p.trim()).filter(Boolean)
+      .filter((p) => !p.startsWith("![") || IMG_LINE.test(p));   // обрезанная разметка картинки — не показываем
+
+    // Краткое содержание — свёрнуто, раскрывается кнопкой «✨ Кратко» справа вверху.
+    const canSum = tldr.length >= 2 && content.length > 500;
+    $("rSumBtn").classList.toggle("hidden", !canSum);
+    const summary = el("div", { class: "summary", id: "rSummary" }, el("div", {},
+      el("div", { class: "tldr-box" }, el("h3", {}, "Краткое содержание"), el("ul", { class: "tldr" }, ...tldr.map((t) => el("li", {}, t))))));
+
+    let article;
+    if (paras.some((p) => !IMG_LINE.test(p))) article = el("div", { class: "article" }, ...paras.map(articleBlock));
+    else article = el("div", { class: "article" },
+      item.summary ? el("p", {}, item.summary.slice(0, 1200)) : null,
+      el("p", { class: "note" }, "Полный текст получить не удалось — откройте оригинал."));
+    box.replaceChildren(summary, article);
+    setSummaryOpen(false);
+  }
+  function renderReaderMeta(item, info) {
+    $("rMeta").replaceChildren(
+      el("span", { class: "badge", style: `background:color-mix(in srgb, ${info.color} 18%, var(--card));color:${info.color}` }, `${info.emoji} ${info.name}`),
+      el("span", { class: "src" }, item.source || host(item.source_url)),
+      ...(item.created_at ? [el("span", {}, "·"), el("span", {}, timeAgo(item.created_at))] : []));
+  }
+  async function openReader(item, info, opts = {}) {
+    readerFromSearch = !!opts.fromSearch;
+    setReaderHero(item, info);
+    renderReaderMeta(item, info);
+    $("rTitle").textContent = item.title;
+    $("rSumBtn").classList.add("hidden");
+    currentArticle = null;
+    $("rContent").replaceChildren(el("div", { class: "article" },
+      ...[96, 92, 98, 70, 0, 94, 97, 88, 60].map((w) => el("div", { class: "skeleton", style: `height:${w ? 15 : 8}px;width:${w}%;margin-top:12px;${w ? "" : "opacity:0"}` }))));
+    const also = item.also || [];
+    $("rAlso").classList.toggle("hidden", !also.length);
+    $("rAlso").querySelector(".row").replaceChildren(...also.map((a) => el("a", { href: a.url, target: "_blank", rel: "noopener noreferrer" }, a.source + " ↗")));
+    const actions = [el("a", { class: "btn btn-primary", href: item.source_url, target: "_blank", rel: "noopener noreferrer" }, "Читать оригинал ↗")];
+    if (item.discussion_url) {
+      const where = host(item.discussion_url).includes("ycombinator") ? " на Hacker News" : "";
+      actions.push(el("a", { class: "btn btn-secondary", href: item.discussion_url, target: "_blank", rel: "noopener noreferrer" }, `💬 Обсуждение${where}`));
+    }
+    $("rActions").replaceChildren(...actions);
+    renderReaderExtra(item, info);
+    markRead(item);
+
+    openModal("reader");
+    const ov = $("reader");
+    ov.dataset.id = item.id;
+    try {
+      const url = item.external ? `/api/read?url=${encodeURIComponent(item.source_url)}` : `/api/article/${item.id}`;
+      const res = await api(url);
+      const data = res.ok ? await res.json() : null;
+      if (ov.dataset.id !== String(item.id)) return;
+      if (data && item.external) {   // статья из интернета: уточняем источник и дату
+        if (data.source) item.source = data.source;
+        if (data.created_at) item.created_at = data.created_at;
+        renderReaderMeta(item, info);
+      }
+      if (data && data.image_url && !item.image_url) { item.image_url = data.image_url; setReaderHero(item, info); }
+      // Сохранённая новость помнит свою выжимку, даже когда пропадёт из ленты.
+      const snap = saved.find((x) => x.key === keyOf(item));
+      if (data && data.content && snap && !snap.content) { snap.content = data.content.slice(0, 16000); snap.tldr = data.tldr; saveExtras(); }
+      if (!data && snap && (snap.content || snap.tldr)) renderReaderBody({ tldr: snap.tldr || [], content: snap.content || "" }, item);
+      else renderReaderBody(data, item);
+    } catch (_) {
+      if (ov.dataset.id === String(item.id)) renderReaderBody(null, item);
+    }
+  }
+
+  function renderReaderExtra(item, info) {
+    const on = isSaved(item);
+    const save = el("button", { class: "ghost-btn" + (on ? " on" : "") });
+    save.innerHTML = BOOKMARK;
+    save.append(on ? "Сохранено" : "Сохранить на потом");
+    save.addEventListener("click", () => toggleSave(item, info));
+    const kids = [save];
+    if (item.source && !item.external) {
+      const hide = el("button", { class: "ghost-btn danger", title: "Новости этого сайта больше не будут показываться" }, `🚫 Скрыть «${item.source}»`);
+      hide.addEventListener("click", () => hideSource(item.source));
+      kids.push(hide);
+    }
+    let box = $("rExtra");
+    if (!box) { box = el("div", { class: "r-extra", id: "rExtra" }); $("rActions").after(box); }
+    box.replaceChildren(...kids);
+  }
+
+  // ---------------- поиск ----------------
+  const SEARCH_INFO = { id: null, name: "Поиск", emoji: "🔍", color: "#0EA5E9" };
+  const SUGGEST = ["обзор iPhone 18 Pro", "лучшие видеокарты 2026", "курс тенге", "GTA 6 дата выхода", "новые модели ИИ"];
+  let recent = store.get("recentSearches", []);
+  let lastSearch = null;     // { q, data } — чтобы вернуться к результатам после чтения
+  let searchSeq = 0;
+
+  function favicon(url) {
+    const h = host(url);
+    const box = el("span", { class: "s-fav" });
+    const img = el("img", { src: `https://icons.duckduckgo.com/ip3/${h}.ico`, alt: "", loading: "lazy", referrerpolicy: "no-referrer" });
+    img.addEventListener("error", () => img.replaceWith("🌐"), { once: true });
+    box.append(img);
+    return box;
+  }
+  const looksLikeUrl = (q) => /^https?:\/\/\S+\.\S+/i.test(q.trim());
+
+  function searchRow(opts) {
+    const row = el("button", { class: "s-res", type: "button" }, opts.icon,
+      el("span", { class: "t" }, el("b", {}, opts.title), el("div", { class: "h" }, opts.host), opts.text ? el("p", {}, opts.text) : null));
+    row.addEventListener("click", opts.onClick);
+    return row;
+  }
+  function openExternal(r) {
+    const item = { id: "ext:" + r.url, external: true, title: r.title, source: r.source || host(r.url), source_url: r.url,
+      summary: r.snippet || "", image_url: null, created_at: r.date || null, also: [] };
+    closeModal($("searchModal"));
+    setTimeout(() => openReader(item, SEARCH_INFO, { fromSearch: true }), 160);
+  }
+
+  function renderSearchHome() {
+    const kids = [];
+    if (recent.length) {
+      kids.push(el("div", { class: "s-label" }, "Недавние"),
+        el("div", { class: "s-chips" }, ...recent.map((q) => el("button", { class: "s-chip", type: "button", onclick: () => runSearch(q) }, "🕘 ", q))));
+    }
+    kids.push(el("div", { class: "s-label" }, "Попробуйте"),
+      el("div", { class: "s-chips" }, ...SUGGEST.map((q) => el("button", { class: "s-chip", type: "button", onclick: () => runSearch(q) }, q))));
+    if (STATIC) kids.push(el("div", { class: "s-note" }, "Ищет по новостям в вашей ленте (RU, EN и KZ). Для поиска по всему интернету под результатами будут кнопки Google и Яндекс. Можно вставить ссылку — она откроется в новой вкладке."));
+    else kids.push(el("div", { class: "s-note" }, "Ищет по всему интернету (на русском) и по вашей ленте. Любой результат откроется прямо здесь — без рекламы, с кнопкой «✨ Кратко». Можно вставить и ссылку на статью."));
+    $("sBody").replaceChildren(...kids);
+  }
+
+  function renderSearchResults(q, data) {
+    const kids = [];
+    if (data.local && data.local.length) {
+      kids.push(el("div", { class: "s-label" }, "В вашей ленте"));
+      for (const it of data.local) {
+        const info = topicInfo((it.topics || []).find((t) => topicInfo(t))) || SEARCH_INFO;
+        kids.push(searchRow({ icon: el("span", { class: "s-fav" }, info.emoji), title: it.title,
+          host: `${it.source || host(it.source_url)} · ${timeAgo(it.created_at)}`, text: (it.summary || "").slice(0, 200),
+          onClick: () => { closeModal($("searchModal")); setTimeout(() => openReader(it, info, { fromSearch: true }), 160); } }));
+      }
+    }
+    if (data.web && data.web.length) {
+      kids.push(el("div", { class: "s-label" }, "В интернете", data.engine ? el("small", {}, "· " + data.engine) : null));
+      for (const r of data.web) kids.push(searchRow({ icon: favicon(r.url), title: r.title, host: r.source || host(r.url), text: r.snippet, onClick: () => openExternal(r) }));
+    }
+    if (STATIC) {
+      const link = (name, href) => el("a", { href, target: "_blank", rel: "noopener noreferrer" }, name + " ↗");
+      kids.push(el("div", { class: "s-note" }, kids.length ? "" : "В ленте ничего не нашлось. ", "Искать в интернете: ",
+        link("Google", `https://www.google.com/search?q=${encodeURIComponent(q)}&hl=ru`), " · ",
+        link("Яндекс", `https://yandex.kz/search/?text=${encodeURIComponent(q)}`)));
+    }
+    if (!kids.length) {
+      const g = el("a", { href: `https://www.google.com/search?q=${encodeURIComponent(q)}&hl=ru`, target: "_blank", rel: "noopener noreferrer" }, "поискать в Google ↗");
+      kids.push(el("div", { class: "s-note" }, data.errors && data.errors.length
+        ? "Поисковики сейчас не ответили — попробуйте ещё раз через минуту или " : "Ничего не нашлось. Попробуйте переформулировать или ", g, "."));
+    }
+    $("sBody").replaceChildren(...kids);
+    selIndex = -1;
+  }
+
+  async function runSearch(q) {
+    q = (q || "").trim();
+    $("sq").value = q;
+    if (!q) return renderSearchHome();
+    if (looksLikeUrl(q)) {
+      if (STATIC) { window.open(q.trim(), "_blank", "noopener"); return; }   // без сервера чужую страницу не прочитать
+      openExternal({ url: q, title: q, snippet: "" }); return;
+    }
+    recent = [q, ...recent.filter((x) => x.toLowerCase() !== q.toLowerCase())].slice(0, 6);
+    store.set("recentSearches", recent);
+    const seq = ++searchSeq;
+    $("sSpin").classList.remove("hidden");
+    $("sBody").replaceChildren(...Array.from({ length: 4 }, () => el("div", { class: "s-skel" },
+      el("div", { class: "skeleton", style: "width:36px;height:36px;border-radius:10px;flex:none" }),
+      el("div", { style: "flex:1" }, el("div", { class: "skeleton", style: "height:15px;width:80%" }), el("div", { class: "skeleton", style: "height:11px;width:30%;margin-top:8px" }),
+        el("div", { class: "skeleton", style: "height:12px;width:95%;margin-top:8px" })))));
+    try {
+      const res = await api("/api/search?q=" + encodeURIComponent(q));
+      const data = res.ok ? await res.json() : { local: [], web: [], errors: ["error"] };
+      if (seq !== searchSeq) return;
+      lastSearch = { q, data };
+      renderSearchResults(q, data);
+    } catch (_) {
+      if (seq === searchSeq) renderSearchResults(q, { local: [], web: [], errors: ["network"] });
+    } finally {
+      if (seq === searchSeq) $("sSpin").classList.add("hidden");
+    }
+  }
+
+  function openSearch(restore) {
+    if (!(restore && lastSearch)) { if (!$("sq").value.trim()) renderSearchHome(); }
+    else { $("sq").value = lastSearch.q; renderSearchResults(lastSearch.q, lastSearch.data); }
+    openModal("searchModal");
+    setTimeout(() => { $("sq").focus(); if (!restore) $("sq").select(); }, 30);
+  }
+  $("searchPill").addEventListener("click", () => openSearch(true));
+  $("searchForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const rows = [...$("sBody").querySelectorAll(".s-res")];
+    if (selIndex >= 0 && rows[selIndex]) rows[selIndex].click();
+    else runSearch($("sq").value);
+  });
+  let selIndex = -1;
+  $("sq").addEventListener("input", () => { selIndex = -1; if (!$("sq").value.trim()) renderSearchHome(); });
+  $("sq").addEventListener("keydown", (e) => {
+    if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+    const rows = [...$("sBody").querySelectorAll(".s-res")];
+    if (!rows.length) return;
+    e.preventDefault();
+    selIndex = (selIndex + (e.key === "ArrowDown" ? 1 : -1) + rows.length) % rows.length;
+    rows.forEach((r, i) => r.classList.toggle("sel", i === selIndex));
+    rows[selIndex].scrollIntoView({ block: "nearest" });
+  });
+  // Ctrl+K / Cmd+K или «/» — открыть поиск
+  document.addEventListener("keydown", (e) => {
+    const typing = /input|textarea/i.test(document.activeElement?.tagName || "");
+    if (((e.ctrlKey || e.metaKey) && (e.code === "KeyK" || e.key.toLowerCase() === "k")) || (e.key === "/" && !typing)) {
+      e.preventDefault();
+      if ($("searchModal").classList.contains("hidden")) { document.querySelectorAll(".overlay.show").forEach((o) => { readerFromSearch = false; closeModal(o); }); openSearch(true); }
+      else $("sq").focus();
+    }
+  });
+
+  // ---------------- каталог тем ----------------
+  function hint(text) {
+    $("tHint").textContent = text;
+    clearTimeout(hint.t);
+    if (text) hint.t = setTimeout(() => { $("tHint").textContent = ""; }, 3500);
+  }
+  function addTopic(id, node) {
+    if (myTopics.length >= maxTopics) {
+      hint(`На главной максимум ${maxTopics} тем — сначала уберите одну.`);
+      if (node) { node.classList.remove("shake"); void node.offsetWidth; node.classList.add("shake"); }
+      return false;
+    }
+    myTopics.push(id); hidden.delete(id);
+    return true;
+  }
+  function renderTopicsModal() {
+    const counter = $("tCounter");
+    counter.textContent = `${myTopics.length} из ${maxTopics}`;
+    counter.classList.toggle("full", myTopics.length >= maxTopics);
+    $("tGrid").replaceChildren(...Object.entries(catalog).map(([id, t]) => {
+      const on = myTopics.includes(id);
+      const tile = el("button", { class: "tile" + (on ? " on" : ""), style: `--c:${t.color}`, "aria-pressed": String(on) },
+        el("span", { class: "ic" }, t.emoji), el("span", {}, el("b", {}, t.name), el("small", {}, t.description)),
+        el("span", { class: "st" }, on ? "✓" : "+"));
+      tile.addEventListener("click", () => {
+        if (on) myTopics = myTopics.filter((x) => x !== id);
+        else if (!addTopic(id, tile)) return;
+        hint(""); save(); renderTopicsModal(); renderPills(); reload();
+      });
+      return tile;
+    }));
+    $("myTopics").replaceChildren(...custom.map((c) => {
+      const on = myTopics.includes(c.id);
+      const chip = el("span", { class: "my-chip" + (on ? " on" : ""), style: `--c:${c.color}`, title: c.keywords });
+      const tg = el("button", { class: "tg", title: on ? "Убрать с главной" : "Показать на главной" }, `${c.emoji} ${c.name}`, on ? " ✓" : "");
+      tg.addEventListener("click", () => {
+        if (on) myTopics = myTopics.filter((x) => x !== c.id);
+        else if (!addTopic(c.id, chip)) return;
+        save(); renderTopicsModal(); renderPills(); reload();
+      });
+      const rm = el("button", { class: "rm", "aria-label": `Удалить тему ${c.name}` }, "×");
+      rm.addEventListener("click", () => {
+        custom = custom.filter((x) => x.id !== c.id); myTopics = myTopics.filter((x) => x !== c.id);
+        save(); renderTopicsModal(); renderPills(); reload();
+      });
+      chip.append(tg, rm);
+      return chip;
+    }));
+  }
+  function openTopics() { hint(""); renderTopicsModal(); openModal("topicsModal"); }
+  $("customForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const name = $("cName").value.trim(), keywords = $("cKeys").value.trim();
+    if (!name || !keywords) return;
+    const i = custom.length;
+    const c = { id: "c-" + Date.now().toString(36), name, keywords, color: CUSTOM_COLORS[i % CUSTOM_COLORS.length], emoji: CUSTOM_EMOJI[i % CUSTOM_EMOJI.length] };
+    custom.push(c);
+    const added = addTopic(c.id);
+    if (!added) hint(`Тема «${name}» сохранена. На главной уже ${maxTopics} тем — уберите одну и нажмите на «${name}» ниже.`);
+    $("cName").value = ""; $("cKeys").value = "";
+    save(); renderTopicsModal(); renderPills(); reload();
+  });
+
+  // ---------------- старт ----------------
+  async function init() {
+    renderTheme(); renderGreeting(); renderRegion(); renderSavedCount(); skeleton();
+    tickClock(); setInterval(tickClock, 1000);
+    loadWeather(); setInterval(loadWeather, 15 * 60 * 1000);
+    setInterval(renderGreeting, 60 * 1000);
+    document.fonts && document.fonts.ready.then(renderRegion);
+    try {
+      const t = await (await api("/api/topics")).json();
+      for (const x of t.topics) catalog[x.id] = x;
+      maxTopics = t.max || 12;
+      const saved = store.get("topics", null);
+      if (!saved || store.get("v", 1) < STATE_VERSION) { myTopics = [...t.defaults]; hidden = new Set(); }
+      else myTopics = saved.filter((id) => catalog[id] || custom.some((c) => c.id === id));
+      myTopics = myTopics.slice(0, maxTopics);
+      save();
+      renderPills();
+      const data = await load();
+      if (!data.updated_at && !data.refreshing && !STATIC) doRefresh();
+      loadSources();
+      if (STATIC) setInterval(checkStaticUpdate, 10 * 60 * 1000);
+    } catch (_) {
+      $("status").textContent = STATIC ? "нет связи" : "сервер недоступен";
+      $("feed").replaceChildren(el("div", { class: "empty empty-big" }, el("div", { class: "emoji" }, "🔌"),
+        STATIC ? "Не удалось загрузить новости. Проверьте интернет и обновите страницу." : "Не удалось связаться с сервером. Запущен ли run.py?"));
+    }
+  }
+  init();
+})();
+</script>
+</body>
+</html>
